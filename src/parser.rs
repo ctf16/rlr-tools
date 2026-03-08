@@ -2,7 +2,6 @@
 use boxcars::{ParseError, Replay};
 use std::error;
 use std::fs;
-use std::io;
 use std::path::Path;
 
 pub fn parse_rl(data: &[u8]) -> Result<Replay, ParseError> {
@@ -23,29 +22,26 @@ pub fn run_cached(filename: &str) -> Result<(), Box<dyn error::Error>> {
     let cache_path = get_cache_path(filename);
 
     if Path::new(&cache_path).exists() {
-        println!("Cache hit - loading from {}", cache_path);
-        let cached = fs::read_to_string(&cache_path)?;
-        io::Write::write_all(&mut io::stdout(), cached.as_bytes())?;
         return Ok(());
     }
 
-    println!("Cache miss - parsing {}", filename);
     let buffer = fs::read(filename)?;
     let replay = parse_rl(&buffer)?;
 
     fs::create_dir_all("parsed_games")?;
     let json = serde_json::to_string_pretty(&replay)?;
     fs::write(&cache_path, &json)?;
-    println!("Saved to {}", cache_path);
-
-    io::Write::write_all(&mut io::stdout(), json.as_bytes())?;
     Ok(())
 }
 
-pub fn run(filename: &str) -> Result<(), Box<dyn error::Error>> {
-    let buffer = fs::read(filename)?;
-    let replay = parse_rl(&buffer)?;
-    serde_json::to_writer(&mut io::stdout(), &replay)?;
-    Ok(())
-}
+// pub fn run(filename: &str) -> Result<(), Box<dyn error::Error>> {
+//     let buffer = fs::read(filename)?;
+//     let replay = parse_rl(&buffer)?;
+//
+//     fs::create_dir_all("parsed_games")?;
+//     let cache_path = get_cache_path(filename);
+//     let json = serde_json::to_string_pretty(&replay)?;
+//     fs::write(&cache_path, &json)?;
+//     Ok(())
+// }
 
