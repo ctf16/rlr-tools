@@ -4,6 +4,7 @@ mod demystify;
 mod kickoff_analysis;
 mod merkle;
 mod parser;
+mod rotation_analysis;
 
 use std::fs;
 use std::io::{self, Write};
@@ -203,6 +204,7 @@ fn main() {
                         println!("  [b] Bot detection analysis");
                         println!("  [k] Kickoff analysis");
                         println!("  [o] Boost analysis");
+                        println!("  [r] Rotation analysis");
                         println!("  [Enter] Continue\n");
                         let action = prompt_input("Action: ");
 
@@ -249,6 +251,14 @@ fn main() {
                                     boost_analysis::print_report(&results);
                                 }
                                 Err(e) => eprintln!("Boost analysis failed: {e}"),
+                            }
+                        } else if action.eq_ignore_ascii_case("r") {
+                            match rotation_analysis::analyze(&json) {
+                                Ok(results) => {
+                                    println!();
+                                    rotation_analysis::print_report(&results);
+                                }
+                                Err(e) => eprintln!("Rotation analysis failed: {e}"),
                             }
                         } else if action.eq_ignore_ascii_case("v") {
                             match merkle::SidecarFile::load(&sig_path) {
