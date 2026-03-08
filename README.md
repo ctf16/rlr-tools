@@ -5,10 +5,20 @@ Rocket League replay verification and analysis tools. Parses `.replay` binary fi
 ## Prerequisites
 
 - **Rust** (1.85+ / 2024 edition) — install via [rustup](https://rustup.rs/)
-  ```sh
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-  ```
 - `cargo` is included with the Rust toolchain and used for building and running.
+
+### macOS / Linux
+
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### Windows
+
+1. Download and run [rustup-init.exe](https://win.rustup.rs/x86_64).
+2. When prompted, install the default toolchain.
+3. You will also need the [Visual Studio C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) — select the "Desktop development with C++" workload during installation.
+4. After installation, open a new terminal (Command Prompt or PowerShell) and verify with `rustc --version`.
 
 ## Usage
 
