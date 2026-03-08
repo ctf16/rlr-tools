@@ -276,4 +276,32 @@ impl HybridVerifyResult {
     pub fn both_valid(&self) -> bool {
         self.ed25519_ok && self.mldsa65_ok
     }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "ed25519": self.ed25519_ok,
+            "mldsa65": self.mldsa65_ok,
+            "hybrid_valid": self.both_valid(),
+        })
+    }
+}
+
+impl VerifyResult {
+    pub fn to_json(&self) -> Value {
+        match self {
+            VerifyResult::Valid => json!({
+                "integrity": "valid",
+                "tampered_section": null,
+            }),
+            VerifyResult::Tampered { section_index } => {
+                let label = section_index
+                    .and_then(|i| SECTION_LABELS.get(i).copied());
+                json!({
+                    "integrity": "tampered",
+                    "tampered_section": section_index,
+                    "tampered_section_label": label,
+                })
+            }
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error;
 
@@ -332,6 +332,29 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<KickoffAnalysisResult>, Box<dy
 
     results.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(results)
+}
+
+impl KickoffAnalysisResult {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "name": self.name,
+            "kickoff_count": self.kickoff_count,
+            "reaction_frames": self.reaction_frames,
+            "mean_reaction": self.mean_reaction,
+            "reaction_stddev": self.reaction_stddev,
+            "pre_hold_count": self.pre_hold_count,
+            "steer_variability": self.steer_variability,
+            "throttle_variability": self.throttle_variability,
+        })
+    }
+}
+
+pub fn results_to_json(results: &[KickoffAnalysisResult]) -> Value {
+    let kickoff_count = results.first().map_or(0, |r| r.kickoff_count);
+    json!({
+        "kickoff_count": kickoff_count,
+        "players": results.iter().map(|r| r.to_json()).collect::<Vec<_>>(),
+    })
 }
 
 pub fn print_report(results: &[KickoffAnalysisResult]) {

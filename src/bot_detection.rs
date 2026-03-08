@@ -1,5 +1,5 @@
 use crate::kickoff_analysis;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::error;
 
@@ -244,6 +244,33 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
 
     results.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(results)
+}
+
+impl BotDetectionResult {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "name": self.name,
+            "platform": self.platform,
+            "unique_steer_count": self.unique_steer_count,
+            "unique_throttle_count": self.unique_throttle_count,
+            "total_steer_updates": self.total_steer_updates,
+            "total_throttle_updates": self.total_throttle_updates,
+            "steer_only_discrete": self.steer_only_discrete,
+            "throttle_only_discrete": self.throttle_only_discrete,
+            "pre_hold_count": self.pre_hold_count,
+            "kickoff_count": self.kickoff_count,
+            "kickoff_consistency_mult": self.kickoff_consistency_mult,
+            "platform_multiplier": self.platform_multiplier,
+            "bot_score": self.bot_score,
+            "verdict": self.verdict,
+        })
+    }
+}
+
+pub fn results_to_json(results: &[BotDetectionResult]) -> Value {
+    json!({
+        "players": results.iter().map(|r| r.to_json()).collect::<Vec<_>>(),
+    })
 }
 
 pub fn print_report(results: &[BotDetectionResult]) {

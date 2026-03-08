@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::error;
 
@@ -228,6 +228,28 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BoostAnalysisResult>, Box<dyn 
 
     results.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(results)
+}
+
+impl BoostAnalysisResult {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "name": self.name,
+            "avg_boost": self.avg_boost,
+            "zero_boost_pct": self.zero_boost_pct,
+            "full_boost_pct": self.full_boost_pct,
+            "boost_collected": self.boost_collected,
+            "boost_consumed": self.boost_consumed,
+            "big_pad_pickups": self.big_pad_pickups,
+            "small_pad_pickups": self.small_pad_pickups,
+            "total_samples": self.total_samples,
+        })
+    }
+}
+
+pub fn results_to_json(results: &[BoostAnalysisResult]) -> Value {
+    json!({
+        "players": results.iter().map(|r| r.to_json()).collect::<Vec<_>>(),
+    })
 }
 
 pub fn print_report(results: &[BoostAnalysisResult]) {
