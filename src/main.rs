@@ -1,5 +1,6 @@
 mod bot_detection;
 mod demystify;
+mod kickoff_analysis;
 mod merkle;
 mod parser;
 
@@ -167,6 +168,7 @@ fn main() {
                         println!("\n  [s] Sign this replay (generate .sig sidecar)");
                         println!("  [v] Verify existing signature");
                         println!("  [b] Bot detection analysis");
+                        println!("  [k] Kickoff analysis");
                         println!("  [Enter] Continue\n");
                         let action = prompt_input("Action: ");
 
@@ -192,6 +194,14 @@ fn main() {
                                     bot_detection::print_report(&results);
                                 }
                                 Err(e) => eprintln!("Bot detection failed: {e}"),
+                            }
+                        } else if action.eq_ignore_ascii_case("k") {
+                            match kickoff_analysis::analyze(&json) {
+                                Ok(results) => {
+                                    println!();
+                                    kickoff_analysis::print_report(&results);
+                                }
+                                Err(e) => eprintln!("Kickoff analysis failed: {e}"),
                             }
                         } else if action.eq_ignore_ascii_case("v") {
                             match merkle::SidecarFile::load(&sig_path) {
