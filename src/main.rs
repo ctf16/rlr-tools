@@ -1,3 +1,4 @@
+mod boost_analysis;
 mod bot_detection;
 mod demystify;
 mod kickoff_analysis;
@@ -169,6 +170,7 @@ fn main() {
                         println!("  [v] Verify existing signature");
                         println!("  [b] Bot detection analysis");
                         println!("  [k] Kickoff analysis");
+                        println!("  [o] Boost analysis");
                         println!("  [Enter] Continue\n");
                         let action = prompt_input("Action: ");
 
@@ -202,6 +204,14 @@ fn main() {
                                     kickoff_analysis::print_report(&results);
                                 }
                                 Err(e) => eprintln!("Kickoff analysis failed: {e}"),
+                            }
+                        } else if action.eq_ignore_ascii_case("o") {
+                            match boost_analysis::analyze(&json) {
+                                Ok(results) => {
+                                    println!();
+                                    boost_analysis::print_report(&results);
+                                }
+                                Err(e) => eprintln!("Boost analysis failed: {e}"),
                             }
                         } else if action.eq_ignore_ascii_case("v") {
                             match merkle::SidecarFile::load(&sig_path) {
