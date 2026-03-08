@@ -8,13 +8,17 @@ mod parser;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 const REPLAY_DIR: &str = "assets/replays";
 const CACHE_DIR: &str = "parsed_games";
 struct ReplayEntry {
     path: String,
     name: String,
-    cached: bool,
+    // cached: bool,
 }
 
 fn list_categories() -> Vec<String> {
@@ -67,7 +71,7 @@ fn list_replays_in_category(category: &str) -> Vec<ReplayEntry> {
         entries.push(ReplayEntry {
             path,
             name,
-            cached,
+            // cached,
         });
     }
 
@@ -84,6 +88,33 @@ fn prompt_input(prompt: &str) -> String {
 
 fn wait_for_enter() {
     prompt_input("\nPress Enter to continue...");
+}
+
+fn with_loading<F, T>(message: &str, f: F) -> T
+where
+    F: FnOnce() -> T,
+{
+    let done = Arc::new(AtomicBool::new(false));
+    let done_clone = done.clone();
+    let msg = message.to_string();
+
+    let handle = thread::spawn(move || {
+        let dots = [".", "..", "..."];
+        let mut i = 0;
+        while !done_clone.load(Ordering::Relaxed) {
+            print!("\r  {}{:<3}", msg, dots[i % 3]);
+            io::stdout().flush().unwrap();
+            i += 1;
+            thread::sleep(Duration::from_millis(300));
+        }
+        print!("\r  {}... done\n", msg);
+        io::stdout().flush().unwrap();
+    });
+
+    let result = f();
+    done.store(true, Ordering::Relaxed);
+    handle.join().unwrap();
+    result
 }
 
 fn main() {
@@ -148,11 +179,12 @@ fn main() {
         }
 
         let entry = &entries[index - 1];
-        println!("\nParsing replay: {}", entry.name);
+        println!();
 
-        match parser::run_cached(&entry.path) {
+        let parse_result = with_loading("Parsing replay", || parser::run_cached(&entry.path));
+
+        match parse_result {
             Ok(_) => {
-                println!("\nParsed successfully.\n");
                 let stem = Path::new(&entry.name)
                     .file_stem()
                     .and_then(|s| s.to_str())
