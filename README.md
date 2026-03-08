@@ -46,6 +46,7 @@ On launch, rlr-tools presents an interactive menu:
    - `[b]` **Bot detection** — Analyze player inputs for bot-like patterns
    - `[k]` **Kickoff analysis** — Measure per-player kickoff reaction times and consistency
    - `[o]` **Boost analysis** — Track boost levels, pad pickups, and consumption per player
+   - `[r]` **Rotation analysis** — Evaluate team rotation quality: double commits, ball-chasing, spacing, offensive momentum, and back-post rotation
 
 ### Replay Files
 
@@ -110,11 +111,26 @@ Tracks each player's boost level across the entire match via network frame data:
 
 Supports both the newer `ReplicatedBoost` format (with grant count) and the older `ReplicatedBoostAmount` byte format.
 
+### Rotation Analysis
+
+Evaluates team rotation quality in 2v2 and 3v3 matches by extracting per-frame car and ball positions from `RigidBody` network frame data. This is the first module to use positional data — existing modules only use inputs and boost.
+
+Five metrics are computed per player/team:
+
+- **Double Commits** — Detects when two teammates simultaneously rush the ball (both within 15 RB units and approaching). Events are deduplicated with a 120-frame (~1 second) cooldown per pair.
+- **Ball-Chasing %** — Percentage of frames where a player (who is not the closest teammate to the ball) is within 20 RB units and actively approaching it.
+- **Average Teammate Distance** — Mean pairwise 2D distance between all teammates each frame. Low values indicate clumping (poor rotation); high values indicate good field spacing.
+- **Offensive Momentum** — Tracks time in offensive/defensive half per player, and counts sustained upfield pushes (30+ consecutive frames moving toward the opponent's goal while in the offensive half).
+- **Back-Post Rotation %** — When a player is retreating in the defensive zone (within 17 RB units of their own goal), checks whether they rotate to the far post (opposite side from the ball). Higher percentages indicate better defensive positioning habits.
+
+The report includes a summary table, a chronological double-commit event list, and a per-minute breakdown showing how rotation quality evolves over the match.
+
+See [METHODOLOGY.md](METHODOLOGY.md) for coordinate system details, thresholds, and formulas.
+
 ### Planned
 
 - **Replay Diffing** — Compare two replays side-by-side to highlight differences in positioning, boost usage, and decision-making
 - **Player Heatmaps** — Extract positional data from network frames to generate per-player field heatmaps
-- **Rotation Metrics** — Analyze team rotation patterns and flag breakdowns (double commits, ball-chasing)
 - **Match Timeline Export** — Generate a structured timeline of key events (goals, demos, saves, boost steals) for external tools
 
 ## Project Structure
@@ -127,6 +143,7 @@ src/
   bot_detection.rs     — Input diversity and composite bot scoring
   kickoff_analysis.rs  — Per-kickoff reaction timing and consistency
   boost_analysis.rs    — Boost level tracking and pad pickup detection
+  rotation_analysis.rs — Team rotation metrics from positional data
   merkle.rs            — Merkle tree construction, Ed25519 signing, sidecar files
 assets/
   replays/             — Sample .replay files organized by category
