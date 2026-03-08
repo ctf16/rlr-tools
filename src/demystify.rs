@@ -1,5 +1,5 @@
 // Small module to help demystify the massive parsed JSON files
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::fs;
 
 pub fn load_parsed_json(cache_path: &str) -> Result<Value, Box<dyn std::error::Error>> {
@@ -65,6 +65,37 @@ pub fn game_overview(parsed_json: &Value) {
     println!("  Duration:   {minutes}m {seconds}s played");
 }
 
+pub fn game_overview_json(parsed_json: &Value) -> Value {
+    let game_type_raw = parsed_json["game_type"].as_str().unwrap_or("Unknown");
+    let game_type = match game_type_raw {
+        "TAGame.Replay_Soccar_TA" => "Soccar",
+        "TAGame.Replay_Hoops_TA" => "Hoops",
+        "TAGame.Replay_Rumble_TA" => "Rumble",
+        "TAGame.Replay_Breakout_TA" => "Dropshot",
+        "TAGame.Replay_Snowday_TA" => "Snow Day",
+        _ => game_type_raw,
+    };
+
+    let props = &parsed_json["properties"];
+    let team_size = props["TeamSize"].as_u64().unwrap_or(0);
+    let date = props["Date"].as_str().unwrap_or("Unknown");
+    let team0_score = props["Team0Score"].as_u64().unwrap_or(0);
+    let team1_score = props["Team1Score"].as_u64().unwrap_or(0);
+    let forfeit = props["bForfeit"].as_bool().unwrap_or(false);
+    let unfair = props["UnfairTeamSize"].as_u64().unwrap_or(0);
+    let total_seconds = props["TotalSecondsPlayed"].as_f64().unwrap_or(0.0);
+
+    json!({
+        "game_type": game_type,
+        "team_size": format!("{}v{}", team_size, team_size),
+        "date": date,
+        "score": { "team_0": team0_score, "team_1": team1_score },
+        "forfeit": forfeit,
+        "unfair_team_size": unfair,
+        "duration_seconds": total_seconds,
+    })
+}
+
 // List the players in the lobby
 // Includes:
 //  - Player name
@@ -98,6 +129,33 @@ pub fn list_players(parsed_json: &Value) {
             println!("    {name} ({platform}){bot_tag}");
         }
     }
+}
+
+pub fn list_players_json(parsed_json: &Value) -> Value {
+    let props = &parsed_json["properties"];
+    let players = match props["PlayerStats"].as_array() {
+        Some(arr) => arr,
+        None => return json!({ "team_0": [], "team_1": [] }),
+    };
+
+    let to_entry = |p: &&Value| -> Value {
+        let name = p["Name"].as_str().unwrap_or("Unknown");
+        let platform_raw = p["Platform"]["value"].as_str().unwrap_or("Unknown");
+        let platform = platform_raw
+            .strip_prefix("OnlinePlatform_")
+            .unwrap_or(platform_raw);
+        let is_bot = p["bBot"].as_bool().unwrap_or(false);
+        json!({ "name": name, "platform": platform, "is_bot": is_bot })
+    };
+
+    let (team0, team1): (Vec<_>, Vec<_>) = players
+        .iter()
+        .partition(|p| p["Team"].as_u64().unwrap_or(0) == 0);
+
+    json!({
+        "team_0": team0.iter().map(to_entry).collect::<Vec<_>>(),
+        "team_1": team1.iter().map(to_entry).collect::<Vec<_>>(),
+    })
 }
 
 // List all player stats
@@ -144,4 +202,32 @@ pub fn player_stats(parsed_json: &Value) {
             );
         }
     }
+}
+
+pub fn player_stats_json(parsed_json: &Value) -> Value {
+    let props = &parsed_json["properties"];
+    let players = match props["PlayerStats"].as_array() {
+        Some(arr) => arr,
+        None => return json!({ "team_0": [], "team_1": [] }),
+    };
+
+    let to_entry = |p: &&Value| -> Value {
+        json!({
+            "name": p["Name"].as_str().unwrap_or("Unknown"),
+            "score": p["Score"].as_u64().unwrap_or(0),
+            "goals": p["Goals"].as_u64().unwrap_or(0),
+            "assists": p["Assists"].as_u64().unwrap_or(0),
+            "saves": p["Saves"].as_u64().unwrap_or(0),
+            "shots": p["Shots"].as_u64().unwrap_or(0),
+        })
+    };
+
+    let (team0, team1): (Vec<_>, Vec<_>) = players
+        .iter()
+        .partition(|p| p["Team"].as_u64().unwrap_or(0) == 0);
+
+    json!({
+        "team_0": team0.iter().map(to_entry).collect::<Vec<_>>(),
+        "team_1": team1.iter().map(to_entry).collect::<Vec<_>>(),
+    })
 }
