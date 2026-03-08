@@ -2,9 +2,12 @@
 // 1. Split replay JSON into semantic sections -> hash each section
 // 2. Concatenate hashed sections -> hash the result to get parent
 // 3. Repeat until root
-// 4. Sign the root with ed25519
+// 4. Sign the root with hybrid Ed25519 + ML-DSA-65
 
-use ed25519_dalek::{Signer, SigningKey, Verifier, VerifyingKey};
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use ed25519_dalek::{Signer as Ed25519Signer, SigningKey, Verifier as Ed25519Verifier, VerifyingKey};
+use fips204::ml_dsa_65;
+use fips204::traits::{SerDes, Signer as MlDsaSigner, Verifier as MlDsaVerifier};
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -38,8 +41,11 @@ pub enum VerifyResult {
 
 #[derive(Serialize, Deserialize)]
 pub struct SidecarFile {
-    pub public_key: Vec<u8>,
-    pub signature: Vec<u8>,
+    pub algorithm: String,
+    pub ed25519_public_key: Vec<u8>,
+    pub ed25519_signature: Vec<u8>,
+    pub mldsa65_public_key: String,
+    pub mldsa65_signature: String,
     pub merkle: MerkleTree,
 }
 
@@ -181,30 +187,71 @@ impl MerkleTree {
 }
 
 impl SidecarFile {
-    pub fn create(tree: MerkleTree) -> Self {
-        let signing_key = SigningKey::generate(&mut OsRng);
-        let signature = signing_key.sign(&tree.root);
-        let verifying_key = signing_key.verifying_key();
+    pub fn create(tree: MerkleTree) -> Result<Self, Box<dyn error::Error>> {
+        // Ed25519 signing
+        let ed_signing_key = SigningKey::generate(&mut OsRng);
+        let ed_signature = ed_signing_key.sign(&tree.root);
+        let ed_verifying_key = ed_signing_key.verifying_key();
 
-        SidecarFile {
-            public_key: verifying_key.as_bytes().to_vec(),
-            signature: signature.to_bytes().to_vec(),
+        // ML-DSA-65 signing
+        let (mldsa_pk, mldsa_sk) = ml_dsa_65::try_keygen()?;
+        let mldsa_signature = mldsa_sk.try_sign(&tree.root, &[])?;
+
+        Ok(SidecarFile {
+            algorithm: "hybrid-ed25519-mldsa65".to_string(),
+            ed25519_public_key: ed_verifying_key.as_bytes().to_vec(),
+            ed25519_signature: ed_signature.to_bytes().to_vec(),
+            mldsa65_public_key: BASE64.encode(mldsa_pk.into_bytes()),
+            mldsa65_signature: BASE64.encode(mldsa_signature),
             merkle: tree,
+        })
+    }
+
+    pub fn verify_signature(&self) -> HybridVerifyResult {
+        let ed25519_ok = self.verify_ed25519();
+        let mldsa65_ok = self.verify_mldsa65();
+
+        HybridVerifyResult {
+            ed25519_ok,
+            mldsa65_ok,
         }
     }
 
-    pub fn verify_signature(&self) -> bool {
-        let Ok(pub_bytes): Result<[u8; 32], _> = self.public_key.as_slice().try_into() else {
+    fn verify_ed25519(&self) -> bool {
+        let Ok(pub_bytes): Result<[u8; 32], _> = self.ed25519_public_key.as_slice().try_into()
+        else {
             return false;
         };
         let Ok(verifying_key) = VerifyingKey::from_bytes(&pub_bytes) else {
             return false;
         };
-        let Ok(sig_bytes): Result<[u8; 64], _> = self.signature.as_slice().try_into() else {
+        let Ok(sig_bytes): Result<[u8; 64], _> = self.ed25519_signature.as_slice().try_into()
+        else {
             return false;
         };
         let signature = ed25519_dalek::Signature::from_bytes(&sig_bytes);
         verifying_key.verify(&self.merkle.root, &signature).is_ok()
+    }
+
+    fn verify_mldsa65(&self) -> bool {
+        let Ok(pk_bytes) = BASE64.decode(&self.mldsa65_public_key) else {
+            return false;
+        };
+        let Ok(pk_array): Result<[u8; ml_dsa_65::PK_LEN], _> = pk_bytes.as_slice().try_into()
+        else {
+            return false;
+        };
+        let Ok(pk) = ml_dsa_65::PublicKey::try_from_bytes(pk_array) else {
+            return false;
+        };
+        let Ok(sig_bytes) = BASE64.decode(&self.mldsa65_signature) else {
+            return false;
+        };
+        let Ok(sig_array): Result<[u8; ml_dsa_65::SIG_LEN], _> = sig_bytes.as_slice().try_into()
+        else {
+            return false;
+        };
+        pk.verify(&self.merkle.root, &sig_array, &[])
     }
 
     pub fn save(&self, path: &str) -> Result<(), Box<dyn error::Error>> {
@@ -217,5 +264,16 @@ impl SidecarFile {
         let content = fs::read_to_string(path)?;
         let sidecar: SidecarFile = serde_json::from_str(&content)?;
         Ok(sidecar)
+    }
+}
+
+pub struct HybridVerifyResult {
+    pub ed25519_ok: bool,
+    pub mldsa65_ok: bool,
+}
+
+impl HybridVerifyResult {
+    pub fn both_valid(&self) -> bool {
+        self.ed25519_ok && self.mldsa65_ok
     }
 }

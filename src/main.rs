@@ -216,10 +216,15 @@ fn main() {
                                 println!("  Leaf {i} ({label}): {}", hex::encode(leaf));
                             }
 
-                            let sidecar = merkle::SidecarFile::create(tree);
-                            match sidecar.save(&sig_path) {
-                                Ok(_) => println!("\nSidecar saved to {sig_path}"),
-                                Err(e) => eprintln!("Failed to save sidecar: {e}"),
+                            match merkle::SidecarFile::create(tree) {
+                                Ok(sidecar) => {
+                                    println!("\nAlgorithm: {}", sidecar.algorithm);
+                                    match sidecar.save(&sig_path) {
+                                        Ok(_) => println!("Sidecar saved to {sig_path}"),
+                                        Err(e) => eprintln!("Failed to save sidecar: {e}"),
+                                    }
+                                }
+                                Err(e) => eprintln!("Failed to sign replay: {e}"),
                             }
                         } else if action.eq_ignore_ascii_case("b") {
                             match bot_detection::analyze(&json) {
@@ -248,15 +253,18 @@ fn main() {
                         } else if action.eq_ignore_ascii_case("v") {
                             match merkle::SidecarFile::load(&sig_path) {
                                 Ok(sidecar) => {
-                                    let sig_ok = sidecar.verify_signature();
-                                    println!("\nSignature valid: {sig_ok}");
+                                    println!("\nAlgorithm: {}", sidecar.algorithm);
+                                    let result = sidecar.verify_signature();
+                                    println!("Ed25519 signature:  {}", if result.ed25519_ok { "VALID" } else { "INVALID" });
+                                    println!("ML-DSA-65 signature: {}", if result.mldsa65_ok { "VALID" } else { "INVALID" });
+                                    println!("Hybrid result:       {}", if result.both_valid() { "VALID" } else { "INVALID" });
 
                                     match sidecar.merkle.verify_replay_json(&json) {
                                         merkle::VerifyResult::Valid => {
-                                            println!("Replay integrity: VALID");
+                                            println!("Replay integrity:    VALID");
                                         }
                                         merkle::VerifyResult::Tampered { section_index } => {
-                                            println!("Replay integrity: TAMPERED");
+                                            println!("Replay integrity:    TAMPERED");
                                             if let Some(i) = section_index {
                                                 let label = merkle::SECTION_LABELS
                                                     .get(i)
