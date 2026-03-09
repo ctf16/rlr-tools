@@ -1,6 +1,6 @@
 # rlr-tools
 
-Rocket League replay verification and analysis tools. Parses `.replay` binary files and provides interactive analysis including bot detection, kickoff behavior, boost usage, and cryptographic replay verification.
+Rocket League replay verification and analysis tools. Parses `.replay` binary files and provides interactive analysis including bot detection, kickoff behavior, boost usage, and cryptographic replay verification. See the [interactive menu](#interactive-menu) section for more details on supported features.
 
 ## Prerequisites
 
