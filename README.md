@@ -127,11 +127,16 @@ The report includes a summary table, a chronological double-commit event list, a
 
 See [METHODOLOGY.md](METHODOLOGY.md) for coordinate system details, thresholds, and formulas.
 
-### Planned
+### Roadmap
 
-- **Replay Diffing** — Compare two replays side-by-side to highlight differences in positioning, boost usage, and decision-making
-- **Player Heatmaps** — Extract positional data from network frames to generate per-player field heatmaps
-- **Match Timeline Export** — Generate a structured timeline of key events (goals, demos, saves, boost steals) for external tools
+See [ROADMAP.md](ROADMAP.md) for the full feature roadmap, including completed features and upcoming work. Highlights of what's next:
+
+- Improved bot detection with input entropy scoring, steer alternation rate, and keyboard-aware scoring paths
+- New behavioral signals: dodge timing consistency, post-impact recovery, boost tap variance
+- Match analysis additions: goal sequence analysis, demolition tracking, speed/supersonic metrics
+- Infrastructure: batch analysis mode, replay comparison, training data export, web API
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to get involved.
 
 ## Project Structure
 
