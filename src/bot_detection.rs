@@ -1,3 +1,4 @@
+use crate::input_synchrony;
 use crate::kickoff_analysis;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -20,10 +21,10 @@ pub struct BotDetectionResult {
     pub throttle_only_discrete: bool,
     pub pre_hold_count: usize,
     pub kickoff_count: usize,
-    // pub reaction_stddev: Option<f64>,
     pub kickoff_consistency_mult: f64,
-    // pub input_score: f64,
     pub platform_multiplier: f64,
+    pub timing_bot_score: Option<f64>,
+    pub used_timing_path: bool,
     pub bot_score: f64,
     pub verdict: &'static str,
 }
@@ -146,6 +147,14 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
             .map(|r| (r.name, (r.pre_hold_count, r.kickoff_count, r.reaction_stddev)))
             .collect();
 
+    // Run input synchrony analysis for timing-based scoring of keyboard players.
+    let timing_lookup: HashMap<String, f64> = input_synchrony::analyze(parsed_json)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| r.is_discrete_only)
+        .map(|r| (r.name, r.timing_bot_score))
+        .collect();
+
     let mut results: Vec<BotDetectionResult> = profiles
         .into_values()
         .map(|profile| {
@@ -210,8 +219,20 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 _ => 1.0,
             };
 
-            let bot_score = (input_score * plat_mult * pre_hold_mult * kickoff_consistency_mult)
-                .min(1.0);
+            // For discrete-only players (keyboard), use timing-based scoring instead
+            // of penalizing them for having few unique input values.
+            let timing_score = timing_lookup.get(&profile.name).copied();
+            let both_discrete = steer_only_discrete && throttle_only_discrete;
+            let used_timing_path = both_discrete && timing_score.is_some();
+
+            let base_score = if used_timing_path {
+                timing_score.unwrap()
+            } else {
+                input_score
+            };
+
+            let bot_score =
+                (base_score * plat_mult * pre_hold_mult * kickoff_consistency_mult).min(1.0);
 
             let verdict = if bot_score >= 0.9 {
                 "Bot"
@@ -232,10 +253,10 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 throttle_only_discrete,
                 pre_hold_count,
                 kickoff_count,
-                // reaction_stddev,
                 kickoff_consistency_mult,
-                // input_score,
                 platform_multiplier: plat_mult,
+                timing_bot_score: timing_score,
+                used_timing_path,
                 bot_score,
                 verdict,
             }
@@ -261,6 +282,8 @@ impl BotDetectionResult {
             "kickoff_count": self.kickoff_count,
             "kickoff_consistency_mult": self.kickoff_consistency_mult,
             "platform_multiplier": self.platform_multiplier,
+            "timing_bot_score": self.timing_bot_score,
+            "used_timing_path": self.used_timing_path,
             "bot_score": self.bot_score,
             "verdict": self.verdict,
         })
@@ -276,11 +299,11 @@ pub fn results_to_json(results: &[BotDetectionResult]) -> Value {
 pub fn print_report(results: &[BotDetectionResult]) {
     println!("=== Bot Detection Analysis ===");
     println!(
-        "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>8} {:>8} {:>10} {:>6}  {}",
+        "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>8} {:>8} {:>10} {:>7} {:>6}  {}",
         "Player", "Platform", "Steer Samples", "Unique", "Throttle Samples", "Unique",
-        "Discrete", "PlatMult", "PreHold", "KickoffMul", "Score", "Verdict"
+        "Discrete", "PlatMult", "PreHold", "KickoffMul", "Timing", "Score", "Verdict"
     );
-    println!("  {}", "-".repeat(134));
+    println!("  {}", "-".repeat(142));
 
     for r in results {
         let discrete = if r.steer_only_discrete && r.throttle_only_discrete {
@@ -298,8 +321,15 @@ pub fn print_report(results: &[BotDetectionResult]) {
         } else {
             "-".to_string()
         };
+        let timing = if r.used_timing_path {
+            format!("{:.2}*", r.timing_bot_score.unwrap_or(0.0))
+        } else if r.timing_bot_score.is_some() {
+            format!("{:.2}", r.timing_bot_score.unwrap())
+        } else {
+            "-".to_string()
+        };
         println!(
-            "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>5.2}  {}",
+            "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>7} {:>5.2}  {}",
             r.name,
             r.platform,
             r.total_steer_updates,
@@ -310,8 +340,12 @@ pub fn print_report(results: &[BotDetectionResult]) {
             r.platform_multiplier,
             pre_hold,
             kickoff_mul,
+            timing,
             r.bot_score,
             r.verdict,
         );
     }
+
+    println!();
+    println!("  * = timing path used (keyboard player scored via input synchrony analysis)");
 }
