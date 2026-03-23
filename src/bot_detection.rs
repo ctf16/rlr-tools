@@ -1,3 +1,4 @@
+use crate::dribble_analysis;
 use crate::kickoff_analysis;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
@@ -22,6 +23,7 @@ pub struct BotDetectionResult {
     pub kickoff_count: usize,
     // pub reaction_stddev: Option<f64>,
     pub kickoff_consistency_mult: f64,
+    pub dribble_mult: f64,
     // pub input_score: f64,
     pub platform_multiplier: f64,
     pub bot_score: f64,
@@ -146,6 +148,12 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
             .map(|r| (r.name, (r.pre_hold_count, r.kickoff_count, r.reaction_stddev)))
             .collect();
 
+    let dribble_lookup: HashMap<String, f64> = dribble_analysis::analyze(parsed_json)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| (r.name, r.dribble_suspicion_score))
+        .collect();
+
     let mut results: Vec<BotDetectionResult> = profiles
         .into_values()
         .map(|profile| {
@@ -210,7 +218,25 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 _ => 1.0,
             };
 
-            let bot_score = (input_score * plat_mult * pre_hold_mult * kickoff_consistency_mult)
+            let dribble_suspicion = dribble_lookup
+                .get(&profile.name)
+                .copied()
+                .unwrap_or(0.0);
+            let dribble_mult = if dribble_suspicion >= 0.7 {
+                1.4
+            } else if dribble_suspicion >= 0.4 {
+                1.2
+            } else if dribble_suspicion >= 0.1 {
+                1.1
+            } else {
+                1.0
+            };
+
+            let bot_score = (input_score
+                * plat_mult
+                * pre_hold_mult
+                * kickoff_consistency_mult
+                * dribble_mult)
                 .min(1.0);
 
             let verdict = if bot_score >= 0.9 {
@@ -234,6 +260,7 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 kickoff_count,
                 // reaction_stddev,
                 kickoff_consistency_mult,
+                dribble_mult,
                 // input_score,
                 platform_multiplier: plat_mult,
                 bot_score,
@@ -260,6 +287,7 @@ impl BotDetectionResult {
             "pre_hold_count": self.pre_hold_count,
             "kickoff_count": self.kickoff_count,
             "kickoff_consistency_mult": self.kickoff_consistency_mult,
+            "dribble_mult": self.dribble_mult,
             "platform_multiplier": self.platform_multiplier,
             "bot_score": self.bot_score,
             "verdict": self.verdict,
@@ -276,11 +304,11 @@ pub fn results_to_json(results: &[BotDetectionResult]) -> Value {
 pub fn print_report(results: &[BotDetectionResult]) {
     println!("=== Bot Detection Analysis ===");
     println!(
-        "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>8} {:>8} {:>10} {:>6}  {}",
+        "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>8} {:>8} {:>10} {:>10} {:>6}  {}",
         "Player", "Platform", "Steer Samples", "Unique", "Throttle Samples", "Unique",
-        "Discrete", "PlatMult", "PreHold", "KickoffMul", "Score", "Verdict"
+        "Discrete", "PlatMult", "PreHold", "KickoffMul", "DribbleMul", "Score", "Verdict"
     );
-    println!("  {}", "-".repeat(134));
+    println!("  {}", "-".repeat(145));
 
     for r in results {
         let discrete = if r.steer_only_discrete && r.throttle_only_discrete {
@@ -298,8 +326,13 @@ pub fn print_report(results: &[BotDetectionResult]) {
         } else {
             "-".to_string()
         };
+        let dribble_mul = if r.dribble_mult > 1.0 {
+            format!("{:.2}x", r.dribble_mult)
+        } else {
+            "-".to_string()
+        };
         println!(
-            "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>5.2}  {}",
+            "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>10} {:>5.2}  {}",
             r.name,
             r.platform,
             r.total_steer_updates,
@@ -310,6 +343,7 @@ pub fn print_report(results: &[BotDetectionResult]) {
             r.platform_multiplier,
             pre_hold,
             kickoff_mul,
+            dribble_mul,
             r.bot_score,
             r.verdict,
         );

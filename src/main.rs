@@ -1,6 +1,7 @@
 mod boost_analysis;
 mod bot_detection;
 mod demystify;
+mod dribble_analysis;
 mod kickoff_analysis;
 mod merkle;
 mod parser;
@@ -205,6 +206,7 @@ fn main() {
                         println!("  [k] Kickoff analysis");
                         println!("  [o] Boost analysis");
                         println!("  [r] Rotation analysis");
+                        println!("  [d] Dribble analysis");
                         println!("  [Enter] Continue\n");
                         let action = prompt_input("Action: ");
 
@@ -259,6 +261,14 @@ fn main() {
                                     rotation_analysis::print_report(&results);
                                 }
                                 Err(e) => eprintln!("Rotation analysis failed: {e}"),
+                            }
+                        } else if action.eq_ignore_ascii_case("d") {
+                            match dribble_analysis::analyze(&json) {
+                                Ok(results) => {
+                                    println!();
+                                    dribble_analysis::print_report(&results);
+                                }
+                                Err(e) => eprintln!("Dribble analysis failed: {e}"),
                             }
                         } else if action.eq_ignore_ascii_case("v") {
                             match merkle::SidecarFile::load(&sig_path) {
