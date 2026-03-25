@@ -10,7 +10,7 @@ use ed25519_dalek::{
 };
 use fips204::ml_dsa_65;
 use fips204::traits::{SerDes, Signer as MlDsaSigner, Verifier as MlDsaVerifier};
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sha3::{Digest, Sha3_256};
