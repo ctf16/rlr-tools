@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::error;
 
@@ -47,7 +47,7 @@ struct ActorState {
 struct DribbleWindow {
     start_frame: usize,
     frames: usize,
-    gap_frames: usize, // consecutive non-dribble frames (for gap tolerance)
+    gap_frames: usize,      // consecutive non-dribble frames (for gap tolerance)
     steer_history: Vec<u8>, // steer values during dribble
     active: bool,
 }
@@ -245,8 +245,8 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<PlayerDribbleResult>, Box<dyn 
         .ok_or("PlayerName not found")?;
     let steer_oid = resolve_object_id(objects, "TAGame.Vehicle_TA:ReplicatedSteer")
         .ok_or("ReplicatedSteer not found")?;
-    let team_oid = resolve_object_id(objects, "Engine.PlayerReplicationInfo:Team")
-        .ok_or("Team not found")?;
+    let team_oid =
+        resolve_object_id(objects, "Engine.PlayerReplicationInfo:Team").ok_or("Team not found")?;
 
     let ball_arch_oid = resolve_object_id(objects, "Archetypes.Ball.Ball_Default");
     let car_arch_oid = resolve_object_id(objects, "Archetypes.Car.Car_Default");
@@ -639,6 +639,30 @@ fn finalize_dribble_window(
         });
 }
 
+impl PlayerDribbleResult {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "name": self.name,
+            "dribble_count": self.dribble_count,
+            "total_dribble_frames": self.total_dribble_frames,
+            "avg_snappy_rate": self.avg_snappy_rate,
+            "avg_zero_steer_pct": self.avg_zero_steer_pct,
+            "timed_flick_count": self.timed_flick_count,
+            "total_flick_count": self.total_flick_count,
+            "snappy_score": self.snappy_score,
+            "zero_steer_score": self.zero_steer_score,
+            "flick_score": self.flick_score,
+            "dribble_suspicion_score": self.dribble_suspicion_score,
+        })
+    }
+}
+
+pub fn results_to_json(results: &[PlayerDribbleResult]) -> Value {
+    json!({
+        "players": results.iter().map(|r| r.to_json()).collect::<Vec<_>>(),
+    })
+}
+
 pub fn print_report(results: &[PlayerDribbleResult]) {
     println!("=== Dribble Analysis ===");
 
@@ -682,7 +706,10 @@ pub fn print_report(results: &[PlayerDribbleResult]) {
     }
 
     println!("\n  Score Breakdown:");
-    for r in results.iter().filter(|r| r.dribble_count >= MIN_DRIBBLES_FOR_SCORE) {
+    for r in results
+        .iter()
+        .filter(|r| r.dribble_count >= MIN_DRIBBLES_FOR_SCORE)
+    {
         println!(
             "    {}: snappy={:.2} zero_steer={:.2} flick_timing={:.2} -> composite={:.2}",
             r.name, r.snappy_score, r.zero_steer_score, r.flick_score, r.dribble_suspicion_score,
