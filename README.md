@@ -26,12 +26,31 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # Build the project
 cargo build
 
-# Run the interactive replay selector
+# Run the interactive replay selector (default)
 cargo run
 
 # Run in release mode (recommended for large replays)
 cargo run --release
 ```
+
+### Web Server
+
+Start the Axum-based web server for browser-based analysis:
+
+```sh
+# Start web server (defaults to port 3000)
+cargo run -- serve
+
+# Start on a custom port
+cargo run -- serve --port 8080
+```
+
+Open `http://localhost:3000` in your browser. The web UI provides:
+- Replay browser organized by category
+- File upload for new `.replay` files
+- All analysis types accessible via buttons (bot detection, kickoff, boost, rotation, dribble)
+- Replay signing and verification
+- JSON responses from a REST API at `/api/replays/...`
 
 ### Interactive Menu
 
@@ -157,8 +176,12 @@ src/
   boost_analysis.rs    — Boost level tracking and pad pickup detection
   rotation_analysis.rs — Team rotation metrics from positional data
   merkle.rs            — Merkle tree construction, Ed25519 signing, sidecar files
+  web.rs               — Axum web server, REST API handlers, replay upload
+static/
+  index.html           — Single-file web frontend (HTML + CSS + vanilla JS)
 assets/
   replays/             — Sample .replay files organized by category
+  replays/uploads/     — Uploaded replays via web UI
 parsed_games/          — Cached JSON output (gitignored)
 ```
 
