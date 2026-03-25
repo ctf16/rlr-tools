@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::error;
 
@@ -119,9 +119,7 @@ fn make_pair_key(a: &str, b: &str) -> (String, String) {
 }
 
 pub fn analyze(parsed_json: &Value) -> Result<Value, Box<dyn error::Error>> {
-    let team_size = parsed_json["properties"]["TeamSize"]
-        .as_i64()
-        .unwrap_or(0);
+    let team_size = parsed_json["properties"]["TeamSize"].as_i64().unwrap_or(0);
     if team_size < 2 {
         return Err("Rotation analysis requires 2v2 or 3v3 (skipping 1v1)".into());
     }
@@ -139,8 +137,8 @@ pub fn analyze(parsed_json: &Value) -> Result<Value, Box<dyn error::Error>> {
         .ok_or("PlayerReplicationInfo not found")?;
     let name_oid = resolve_object_id(objects, "Engine.PlayerReplicationInfo:PlayerName")
         .ok_or("PlayerName not found")?;
-    let team_oid = resolve_object_id(objects, "Engine.PlayerReplicationInfo:Team")
-        .ok_or("Team not found")?;
+    let team_oid =
+        resolve_object_id(objects, "Engine.PlayerReplicationInfo:Team").ok_or("Team not found")?;
 
     // Find archetype-based object IDs for ball and car detection in new_actors
     let ball_archetype = "Archetypes.Ball.Ball_Default";
@@ -297,7 +295,10 @@ pub fn analyze(parsed_json: &Value) -> Result<Value, Box<dyn error::Error>> {
             stats.team = team_idx; // update in case it changed
 
             stats.frames_active += 1;
-            *stats.per_minute_total_frames.entry(minute_bucket).or_insert(0) += 1;
+            *stats
+                .per_minute_total_frames
+                .entry(minute_bucket)
+                .or_insert(0) += 1;
 
             let dist_to_ball = distance_2d(&car_state.pos, &ball_state.pos);
 
@@ -315,7 +316,10 @@ pub fn analyze(parsed_json: &Value) -> Result<Value, Box<dyn error::Error>> {
             };
             if is_offensive {
                 stats.frames_offensive += 1;
-                *stats.per_minute_offensive_frames.entry(minute_bucket).or_insert(0) += 1;
+                *stats
+                    .per_minute_offensive_frames
+                    .entry(minute_bucket)
+                    .or_insert(0) += 1;
             } else {
                 stats.frames_defensive += 1;
             }
@@ -342,7 +346,7 @@ pub fn analyze(parsed_json: &Value) -> Result<Value, Box<dyn error::Error>> {
             let dist_from_own_goal = (car_state.pos.y - own_goal_y).abs();
             let retreating_toward_own_goal = match team_idx {
                 0 => car_state.vel.y < 0.0, // moving toward negative Y
-                _ => car_state.vel.y > 0.0,  // moving toward positive Y
+                _ => car_state.vel.y > 0.0, // moving toward positive Y
             };
 
             if dist_from_own_goal < DEFENSIVE_ZONE_DEPTH && retreating_toward_own_goal {
@@ -504,11 +508,7 @@ pub fn analyze(parsed_json: &Value) -> Result<Value, Box<dyn error::Error>> {
         });
 
         // Per-minute breakdown
-        let mut all_minutes: Vec<usize> = ts
-            .per_minute_distance_count
-            .keys()
-            .copied()
-            .collect();
+        let mut all_minutes: Vec<usize> = ts.per_minute_distance_count.keys().copied().collect();
         // Also include minutes from player stats
         for (_, stats) in player_stats.iter().filter(|(_, s)| s.team == team_idx) {
             for &m in stats.per_minute_total_frames.keys() {

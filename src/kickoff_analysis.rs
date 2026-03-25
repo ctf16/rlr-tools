@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::error;
 
@@ -80,11 +80,12 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<KickoffAnalysisResult>, Box<dy
         .ok_or("ReplicatedSteer not found")?;
     let throttle_oid = resolve_object_id(objects, "TAGame.Vehicle_TA:ReplicatedThrottle")
         .ok_or("ReplicatedThrottle not found")?;
-    let countdown_oid =
-        resolve_object_id(objects, "TAGame.GameEvent_TA:ReplicatedRoundCountDownNumber")
-            .ok_or("CountDown not found")?;
-    let ball_hit_oid =
-        resolve_object_id(objects, "TAGame.GameEvent_Soccar_TA:bBallHasBeenHit");
+    let countdown_oid = resolve_object_id(
+        objects,
+        "TAGame.GameEvent_TA:ReplicatedRoundCountDownNumber",
+    )
+    .ok_or("CountDown not found")?;
+    let ball_hit_oid = resolve_object_id(objects, "TAGame.GameEvent_Soccar_TA:bBallHasBeenHit");
     let pri_link_oid = resolve_object_id(objects, "Engine.Pawn:PlayerReplicationInfo")
         .ok_or("PlayerReplicationInfo not found")?;
     let name_oid = resolve_object_id(objects, "Engine.PlayerReplicationInfo:PlayerName")
@@ -238,10 +239,7 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<KickoffAnalysisResult>, Box<dy
             };
 
             // Reaction latency: first throttle value that is not 128 (neutral).
-            let first_non_neutral_throttle = inputs
-                .throttle
-                .iter()
-                .find(|(_, val)| *val != 128);
+            let first_non_neutral_throttle = inputs.throttle.iter().find(|(_, val)| *val != 128);
 
             match first_non_neutral_throttle {
                 Some(&(offset, val)) => {
@@ -386,13 +384,7 @@ pub fn print_report(results: &[KickoffAnalysisResult]) {
 
         println!(
             "  {:<24} {:>10} {:>10} {:>8}/{:<1} {:>12} {:>12}",
-            r.name,
-            mean_str,
-            std_str,
-            r.pre_hold_count,
-            r.kickoff_count,
-            steer_var,
-            throttle_var,
+            r.name, mean_str, std_str, r.pre_hold_count, r.kickoff_count, steer_var, throttle_var,
         );
     }
 

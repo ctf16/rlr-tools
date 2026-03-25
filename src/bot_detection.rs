@@ -1,6 +1,7 @@
+use crate::dribble_analysis;
 use crate::input_synchrony;
 use crate::kickoff_analysis;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::error;
 
@@ -22,6 +23,8 @@ pub struct BotDetectionResult {
     pub pre_hold_count: usize,
     pub kickoff_count: usize,
     pub kickoff_consistency_mult: f64,
+    pub dribble_mult: f64,
+    // pub input_score: f64,
     pub platform_multiplier: f64,
     pub timing_bot_score: Option<f64>,
     pub used_timing_path: bool,
@@ -144,9 +147,18 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
         kickoff_analysis::analyze(parsed_json)
             .unwrap_or_default()
             .into_iter()
-            .map(|r| (r.name, (r.pre_hold_count, r.kickoff_count, r.reaction_stddev)))
+            .map(|r| {
+                (
+                    r.name,
+                    (r.pre_hold_count, r.kickoff_count, r.reaction_stddev),
+                )
+            })
             .collect();
 
+    let dribble_lookup: HashMap<String, f64> = dribble_analysis::analyze(parsed_json)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| (r.name, r.dribble_suspicion_score))
     // Run input synchrony analysis for timing-based scoring of keyboard players.
     let timing_lookup: HashMap<String, f64> = input_synchrony::analyze(parsed_json)
         .unwrap_or_default()
@@ -219,6 +231,20 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 _ => 1.0,
             };
 
+            let dribble_suspicion = dribble_lookup.get(&profile.name).copied().unwrap_or(0.0);
+            let dribble_mult = if dribble_suspicion >= 0.7 {
+                1.4
+            } else if dribble_suspicion >= 0.4 {
+                1.2
+            } else if dribble_suspicion >= 0.1 {
+                1.1
+            } else {
+                1.0
+            };
+
+            let bot_score =
+                (input_score * plat_mult * pre_hold_mult * kickoff_consistency_mult * dribble_mult)
+                    .min(1.0);
             // For discrete-only players (keyboard), use timing-based scoring instead
             // of penalizing them for having few unique input values.
             let timing_score = timing_lookup.get(&profile.name).copied();
@@ -254,6 +280,8 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 pre_hold_count,
                 kickoff_count,
                 kickoff_consistency_mult,
+                dribble_mult,
+                // input_score,
                 platform_multiplier: plat_mult,
                 timing_bot_score: timing_score,
                 used_timing_path,
@@ -281,6 +309,7 @@ impl BotDetectionResult {
             "pre_hold_count": self.pre_hold_count,
             "kickoff_count": self.kickoff_count,
             "kickoff_consistency_mult": self.kickoff_consistency_mult,
+            "dribble_mult": self.dribble_mult,
             "platform_multiplier": self.platform_multiplier,
             "timing_bot_score": self.timing_bot_score,
             "used_timing_path": self.used_timing_path,
@@ -298,7 +327,7 @@ pub fn results_to_json(results: &[BotDetectionResult]) -> Value {
 
 pub fn print_report(results: &[BotDetectionResult]) {
     println!("=== Bot Detection Analysis ===");
-    println!(
+    println!("  {}", "-".repeat(145));
         "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>8} {:>8} {:>10} {:>7} {:>6}  {}",
         "Player", "Platform", "Steer Samples", "Unique", "Throttle Samples", "Unique",
         "Discrete", "PlatMult", "PreHold", "KickoffMul", "Timing", "Score", "Verdict"
@@ -321,6 +350,8 @@ pub fn print_report(results: &[BotDetectionResult]) {
         } else {
             "-".to_string()
         };
+        let dribble_mul = if r.dribble_mult > 1.0 {
+            format!("{:.2}x", r.dribble_mult)
         let timing = if r.used_timing_path {
             format!("{:.2}*", r.timing_bot_score.unwrap_or(0.0))
         } else if r.timing_bot_score.is_some() {
@@ -329,6 +360,7 @@ pub fn print_report(results: &[BotDetectionResult]) {
             "-".to_string()
         };
         println!(
+            "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>10} {:>5.2}  {}",
             "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>7} {:>5.2}  {}",
             r.name,
             r.platform,
@@ -340,6 +372,7 @@ pub fn print_report(results: &[BotDetectionResult]) {
             r.platform_multiplier,
             pre_hold,
             kickoff_mul,
+            dribble_mul,
             timing,
             r.bot_score,
             r.verdict,

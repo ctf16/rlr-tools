@@ -34,6 +34,18 @@ pub fn run_cached(filename: &str) -> Result<(), Box<dyn error::Error>> {
     Ok(())
 }
 
+pub fn parse_and_cache_bytes(data: &[u8], name: &str) -> Result<(), Box<dyn error::Error>> {
+    let cache_path = format!("parsed_games/{}.json", name);
+    if Path::new(&cache_path).exists() {
+        return Ok(());
+    }
+    let replay = parse_rl(data)?;
+    fs::create_dir_all("parsed_games")?;
+    let json = serde_json::to_string_pretty(&replay)?;
+    fs::write(&cache_path, &json)?;
+    Ok(())
+}
+
 // pub fn run(filename: &str) -> Result<(), Box<dyn error::Error>> {
 //     let buffer = fs::read(filename)?;
 //     let replay = parse_rl(&buffer)?;
@@ -44,4 +56,3 @@ pub fn run_cached(filename: &str) -> Result<(), Box<dyn error::Error>> {
 //     fs::write(&cache_path, &json)?;
 //     Ok(())
 // }
-

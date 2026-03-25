@@ -26,12 +26,31 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # Build the project
 cargo build
 
-# Run the interactive replay selector
+# Run the interactive replay selector (default)
 cargo run
 
 # Run in release mode (recommended for large replays)
 cargo run --release
 ```
+
+### Web Server
+
+Start the Axum-based web server for browser-based analysis:
+
+```sh
+# Start web server (defaults to port 3000)
+cargo run -- serve
+
+# Start on a custom port
+cargo run -- serve --port 8080
+```
+
+Open `http://localhost:3000` in your browser. The web UI provides:
+- Replay browser organized by category
+- File upload for new `.replay` files
+- All analysis types accessible via buttons (bot detection, kickoff, boost, rotation, dribble)
+- Replay signing and verification
+- JSON responses from a REST API at `/api/replays/...`
 
 ### Interactive Menu
 
@@ -47,6 +66,7 @@ On launch, rlr-tools presents an interactive menu:
    - `[k]` **Kickoff analysis** — Measure per-player kickoff reaction times and consistency
    - `[o]` **Boost analysis** — Track boost levels, pad pickups, and consumption per player
    - `[r]` **Rotation analysis** — Evaluate team rotation quality: double commits, ball-chasing, spacing, offensive momentum, and back-post rotation
+   - `[d]` **Dribble analysis** — Detect bot-like ground dribble mechanics: snappy micro-corrections, zero-steer periods, and opponent-timed flicks
 
 ### Replay Files
 
@@ -86,6 +106,11 @@ Produces a composite bot score (0.0–1.0) per player by combining multiple inde
 - **Platform weighting** — Adjusts the score based on player platform (Epic 1.0x, Steam 0.75x, other 0.85x), reflecting observed cheater distribution.
 - **Kickoff pre-hold** — Detects if a player was already holding throttle before the countdown finished (a human habit), applying a 0.4x reduction to the bot score.
 - **Kickoff reaction consistency** — Measures the standard deviation of reaction times across kickoffs. Near-zero variance (< 1 frame stddev) boosts the score by 1.5x; humans naturally vary.
+
+- **Dribble mechanics** — Analyzes ground dribble behavior using 3D ball-car positioning from `RigidBody` data. Three sub-signals are scored and combined (weighted 40/35/25):
+  - *Snappy micro-corrections* — Rapid steer adjustments (delta > 40) that snap back to neutral within 5 frames. Bots make precise, jerky corrections that humans cannot replicate consistently. Scored by rate per second of dribble.
+  - *Zero-steer periods* — Sustained runs of exactly neutral steer (128) lasting 0.25s+ during an active dribble. Bots hold perfect neutral when the ball is balanced; human analog sticks always produce noise. Scored by percentage of dribble time at neutral.
+  - *Opponent-timed flicks* — Flicks (upward ball velocity spike with rapid ball-car separation) that are timed within 30 frames of an opponent challenging the ball. A high ratio of timed flicks across multiple dribbles indicates reactive bot behavior. Requires 2+ qualifying dribbles (60+ frames each) to produce a nonzero score.
 
 Final verdict: **Bot** (>= 0.9), **Likely Bot** (>= 0.5), or **Human** (< 0.5).
 
@@ -132,7 +157,7 @@ See [METHODOLOGY.md](METHODOLOGY.md) for coordinate system details, thresholds, 
 See [ROADMAP.md](ROADMAP.md) for the full feature roadmap, including completed features and upcoming work. Highlights of what's next:
 
 - Improved bot detection with input entropy scoring, steer alternation rate, and keyboard-aware scoring paths
-- New behavioral signals: dodge timing consistency, post-impact recovery, boost tap variance
+- New behavioral signals: dodge timing consistency, post-impact recovery, boost tap variance, dribble mechanic refinements
 - Match analysis additions: goal sequence analysis, demolition tracking, speed/supersonic metrics
 - Infrastructure: batch analysis mode, replay comparison, training data export, web API
 
@@ -146,12 +171,17 @@ src/
   parser.rs            — Replay parsing with JSON caching
   demystify.rs         — Human-readable summaries (overview, players, stats)
   bot_detection.rs     — Input diversity and composite bot scoring
+  dribble_analysis.rs  — Ground dribble mechanics detection (3D physics)
   kickoff_analysis.rs  — Per-kickoff reaction timing and consistency
   boost_analysis.rs    — Boost level tracking and pad pickup detection
   rotation_analysis.rs — Team rotation metrics from positional data
   merkle.rs            — Merkle tree construction, Ed25519 signing, sidecar files
+  web.rs               — Axum web server, REST API handlers, replay upload
+static/
+  index.html           — Single-file web frontend (HTML + CSS + vanilla JS)
 assets/
   replays/             — Sample .replay files organized by category
+  replays/uploads/     — Uploaded replays via web UI
 parsed_games/          — Cached JSON output (gitignored)
 ```
 

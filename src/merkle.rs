@@ -5,12 +5,14 @@
 // 4. Sign the root with hybrid Ed25519 + ML-DSA-65
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use ed25519_dalek::{Signer as Ed25519Signer, SigningKey, Verifier as Ed25519Verifier, VerifyingKey};
+use ed25519_dalek::{
+    Signer as Ed25519Signer, SigningKey, Verifier as Ed25519Verifier, VerifyingKey,
+};
 use fips204::ml_dsa_65;
 use fips204::traits::{SerDes, Signer as MlDsaSigner, Verifier as MlDsaVerifier};
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha3::{Digest, Sha3_256};
 use std::error;
 use std::fs;
@@ -153,7 +155,11 @@ impl MerkleTree {
         let nodes = build_tree(&leaves);
         let root = nodes[0];
 
-        MerkleTree { leaves, nodes, root }
+        MerkleTree {
+            leaves,
+            nodes,
+            root,
+        }
     }
 
     pub fn from_replay_json(json: &Value) -> Self {
@@ -164,7 +170,9 @@ impl MerkleTree {
 
     pub fn verify(&self, sections: &[&[u8]]) -> VerifyResult {
         if sections.len() != self.leaves.len() {
-            return VerifyResult::Tampered { section_index: None };
+            return VerifyResult::Tampered {
+                section_index: None,
+            };
         }
 
         for (i, section) in sections.iter().enumerate() {
@@ -272,6 +280,7 @@ pub struct HybridVerifyResult {
     pub mldsa65_ok: bool,
 }
 
+#[allow(dead_code)]
 impl HybridVerifyResult {
     pub fn both_valid(&self) -> bool {
         self.ed25519_ok && self.mldsa65_ok
@@ -286,6 +295,7 @@ impl HybridVerifyResult {
     }
 }
 
+#[allow(dead_code)]
 impl VerifyResult {
     pub fn to_json(&self) -> Value {
         match self {
@@ -294,8 +304,7 @@ impl VerifyResult {
                 "tampered_section": null,
             }),
             VerifyResult::Tampered { section_index } => {
-                let label = section_index
-                    .and_then(|i| SECTION_LABELS.get(i).copied());
+                let label = section_index.and_then(|i| SECTION_LABELS.get(i).copied());
                 json!({
                     "integrity": "tampered",
                     "tampered_section": section_index,

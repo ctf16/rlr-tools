@@ -1,5 +1,5 @@
 // Small module to help demystify the massive parsed JSON files
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::fs;
 
 pub fn load_parsed_json(cache_path: &str) -> Result<Value, Box<dyn std::error::Error>> {
@@ -110,9 +110,9 @@ pub fn list_players(parsed_json: &Value) {
         }
     };
 
-    let (team0, team1): (Vec<_>, Vec<_>) = players.iter().partition(|p| {
-        p["Team"].as_u64().unwrap_or(0) == 0
-    });
+    let (team0, team1): (Vec<_>, Vec<_>) = players
+        .iter()
+        .partition(|p| p["Team"].as_u64().unwrap_or(0) == 0);
 
     println!("=== Players ===");
     for (label, team) in [("Team 0 (Blue)", &team0), ("Team 1 (Orange)", &team1)] {
@@ -175,9 +175,9 @@ pub fn player_stats(parsed_json: &Value) {
         }
     };
 
-    let (team0, team1): (Vec<_>, Vec<_>) = players.iter().partition(|p| {
-        p["Team"].as_u64().unwrap_or(0) == 0
-    });
+    let (team0, team1): (Vec<_>, Vec<_>) = players
+        .iter()
+        .partition(|p| p["Team"].as_u64().unwrap_or(0) == 0);
 
     println!("=== Player Stats ===");
     for (label, team) in [("Team 0 (Blue)", &team0), ("Team 1 (Orange)", &team1)] {
