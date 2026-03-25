@@ -2,6 +2,7 @@ mod boost_analysis;
 mod bot_detection;
 mod demystify;
 mod dribble_analysis;
+mod input_synchrony;
 mod kickoff_analysis;
 mod merkle;
 mod parser;
@@ -230,6 +231,7 @@ fn run_cli() {
                         println!("\n  [s] Sign this replay (generate .sig sidecar)");
                         println!("  [v] Verify existing signature");
                         println!("  [b] Bot detection analysis");
+                        println!("  [i] Input synchrony analysis");
                         println!("  [k] Kickoff analysis");
                         println!("  [o] Boost analysis");
                         println!("  [r] Rotation analysis");
@@ -264,6 +266,14 @@ fn run_cli() {
                                     bot_detection::print_report(&results);
                                 }
                                 Err(e) => eprintln!("Bot detection failed: {e}"),
+                            }
+                        } else if action.eq_ignore_ascii_case("i") {
+                            match input_synchrony::analyze(&json) {
+                                Ok(results) => {
+                                    println!();
+                                    input_synchrony::print_report(&results);
+                                }
+                                Err(e) => eprintln!("Input synchrony analysis failed: {e}"),
                             }
                         } else if action.eq_ignore_ascii_case("k") {
                             match kickoff_analysis::analyze(&json) {
