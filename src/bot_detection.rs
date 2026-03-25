@@ -1,6 +1,6 @@
 use crate::dribble_analysis;
 use crate::kickoff_analysis;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::error;
 
@@ -145,7 +145,12 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
         kickoff_analysis::analyze(parsed_json)
             .unwrap_or_default()
             .into_iter()
-            .map(|r| (r.name, (r.pre_hold_count, r.kickoff_count, r.reaction_stddev)))
+            .map(|r| {
+                (
+                    r.name,
+                    (r.pre_hold_count, r.kickoff_count, r.reaction_stddev),
+                )
+            })
             .collect();
 
     let dribble_lookup: HashMap<String, f64> = dribble_analysis::analyze(parsed_json)
@@ -218,10 +223,7 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 _ => 1.0,
             };
 
-            let dribble_suspicion = dribble_lookup
-                .get(&profile.name)
-                .copied()
-                .unwrap_or(0.0);
+            let dribble_suspicion = dribble_lookup.get(&profile.name).copied().unwrap_or(0.0);
             let dribble_mult = if dribble_suspicion >= 0.7 {
                 1.4
             } else if dribble_suspicion >= 0.4 {
@@ -232,12 +234,9 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 1.0
             };
 
-            let bot_score = (input_score
-                * plat_mult
-                * pre_hold_mult
-                * kickoff_consistency_mult
-                * dribble_mult)
-                .min(1.0);
+            let bot_score =
+                (input_score * plat_mult * pre_hold_mult * kickoff_consistency_mult * dribble_mult)
+                    .min(1.0);
 
             let verdict = if bot_score >= 0.9 {
                 "Bot"
@@ -305,8 +304,19 @@ pub fn print_report(results: &[BotDetectionResult]) {
     println!("=== Bot Detection Analysis ===");
     println!(
         "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>8} {:>8} {:>10} {:>10} {:>6}  {}",
-        "Player", "Platform", "Steer Samples", "Unique", "Throttle Samples", "Unique",
-        "Discrete", "PlatMult", "PreHold", "KickoffMul", "DribbleMul", "Score", "Verdict"
+        "Player",
+        "Platform",
+        "Steer Samples",
+        "Unique",
+        "Throttle Samples",
+        "Unique",
+        "Discrete",
+        "PlatMult",
+        "PreHold",
+        "KickoffMul",
+        "DribbleMul",
+        "Score",
+        "Verdict"
     );
     println!("  {}", "-".repeat(145));
 

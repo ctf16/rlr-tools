@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::error;
 
@@ -38,11 +38,15 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BoostAnalysisResult>, Box<dyn 
     // Older replays use ReplicatedBoostAmount (simple Byte value).
     let replicated_boost_oid =
         resolve_object_id(objects, "TAGame.CarComponent_Boost_TA:ReplicatedBoost");
-    let boost_amount_oid =
-        resolve_object_id(objects, "TAGame.CarComponent_Boost_TA:ReplicatedBoostAmount");
+    let boost_amount_oid = resolve_object_id(
+        objects,
+        "TAGame.CarComponent_Boost_TA:ReplicatedBoostAmount",
+    );
 
     if replicated_boost_oid.is_none() && boost_amount_oid.is_none() {
-        return Err("no boost data found (neither ReplicatedBoost nor ReplicatedBoostAmount)".into());
+        return Err(
+            "no boost data found (neither ReplicatedBoost nor ReplicatedBoostAmount)".into(),
+        );
     }
 
     let vehicle_oid = resolve_object_id(objects, "TAGame.CarComponent_TA:Vehicle")
@@ -73,43 +77,42 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BoostAnalysisResult>, Box<dyn 
     let mut trackers: HashMap<u64, BoostTracker> = HashMap::new();
 
     // Helper to record a boost update into a tracker.
-    let record_boost =
-        |tracker: &mut BoostTracker, boost_val: u8, grant_count: Option<u32>| {
-            // Detect pickups.
-            match grant_count {
-                Some(gc) if gc > tracker.last_grant_count => {
-                    if boost_val == BIG_PAD_BOOST {
+    let record_boost = |tracker: &mut BoostTracker, boost_val: u8, grant_count: Option<u32>| {
+        // Detect pickups.
+        match grant_count {
+            Some(gc) if gc > tracker.last_grant_count => {
+                if boost_val == BIG_PAD_BOOST {
+                    tracker.big_pad_pickups += 1;
+                } else if boost_val > tracker.last_boost
+                    && (boost_val - tracker.last_boost) >= SMALL_PAD_THRESHOLD
+                {
+                    tracker.small_pad_pickups += 1;
+                }
+                tracker.last_grant_count = gc;
+            }
+            None => {
+                // No grant_count available (old format) — use heuristic.
+                if boost_val > tracker.last_boost {
+                    let jump = boost_val - tracker.last_boost;
+                    if boost_val == BIG_PAD_BOOST && jump >= BIG_PAD_JUMP {
                         tracker.big_pad_pickups += 1;
-                    } else if boost_val > tracker.last_boost
-                        && (boost_val - tracker.last_boost) >= SMALL_PAD_THRESHOLD
-                    {
+                    } else if jump >= SMALL_PAD_THRESHOLD {
                         tracker.small_pad_pickups += 1;
                     }
-                    tracker.last_grant_count = gc;
                 }
-                None => {
-                    // No grant_count available (old format) — use heuristic.
-                    if boost_val > tracker.last_boost {
-                        let jump = boost_val - tracker.last_boost;
-                        if boost_val == BIG_PAD_BOOST && jump >= BIG_PAD_JUMP {
-                            tracker.big_pad_pickups += 1;
-                        } else if jump >= SMALL_PAD_THRESHOLD {
-                            tracker.small_pad_pickups += 1;
-                        }
-                    }
-                }
-                _ => {}
             }
+            _ => {}
+        }
 
-            if boost_val > tracker.last_boost {
-                tracker.boost_collected += (boost_val - tracker.last_boost) as f64;
-            } else if boost_val < tracker.last_boost {
-                tracker.boost_consumed += (tracker.last_boost - boost_val) as f64;
-            }
+        if boost_val > tracker.last_boost {
+            tracker.boost_collected += (boost_val - tracker.last_boost) as f64;
+        } else if boost_val < tracker.last_boost {
+            tracker.boost_consumed += (tracker.last_boost - boost_val) as f64;
+        }
 
-            tracker.samples.push(boost_val);
-            tracker.last_boost = boost_val;
-        };
+        tracker.samples.push(boost_val);
+        tracker.last_boost = boost_val;
+    };
 
     for frame in frames {
         let Some(updated) = frame["updated_actors"].as_array() else {
@@ -256,7 +259,15 @@ pub fn print_report(results: &[BoostAnalysisResult]) {
     println!("=== Boost Analysis ===");
     println!(
         "  {:<24} {:>8} {:>8} {:>8} {:>10} {:>10} {:>8} {:>8} {:>8}",
-        "Player", "AvgBoost", "AtZero%", "AtFull%", "Collected", "Consumed", "BigPads", "SmPads", "Samples"
+        "Player",
+        "AvgBoost",
+        "AtZero%",
+        "AtFull%",
+        "Collected",
+        "Consumed",
+        "BigPads",
+        "SmPads",
+        "Samples"
     );
     println!("  {}", "-".repeat(100));
 
