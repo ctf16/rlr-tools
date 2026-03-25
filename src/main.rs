@@ -6,17 +6,40 @@ mod kickoff_analysis;
 mod merkle;
 mod parser;
 mod rotation_analysis;
+mod web;
 
+use clap::{Parser, Subcommand};
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
 const REPLAY_DIR: &str = "assets/replays";
 const CACHE_DIR: &str = "parsed_games";
+
+#[derive(Parser)]
+#[command(
+    name = "rlr-tools",
+    about = "Rocket League replay verification and analysis"
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Start interactive CLI (default)
+    Cli,
+    /// Start web server
+    Serve {
+        #[arg(short, long, default_value = "3000")]
+        port: u16,
+    },
+}
 struct ReplayEntry {
     path: String,
     name: String,
@@ -47,11 +70,7 @@ fn list_replays_in_category(category: &str) -> Vec<ReplayEntry> {
 
     let mut names: Vec<String> = read_dir
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .map_or(false, |ext| ext == "replay")
-        })
+        .filter(|e| e.path().extension().map_or(false, |ext| ext == "replay"))
         .filter_map(|e| e.file_name().into_string().ok())
         .collect();
     names.sort();
@@ -120,6 +139,14 @@ where
 }
 
 fn main() {
+    let cli = Cli::parse();
+    match cli.command.unwrap_or(Commands::Cli) {
+        Commands::Cli => run_cli(),
+        Commands::Serve { port } => web::start_server(port),
+    }
+}
+
+fn run_cli() {
     loop {
         println!("\n=== Rocket League Replay Tools ===");
         println!("Select a category:");
@@ -275,9 +302,30 @@ fn main() {
                                 Ok(sidecar) => {
                                     println!("\nAlgorithm: {}", sidecar.algorithm);
                                     let result = sidecar.verify_signature();
-                                    println!("Ed25519 signature:  {}", if result.ed25519_ok { "VALID" } else { "INVALID" });
-                                    println!("ML-DSA-65 signature: {}", if result.mldsa65_ok { "VALID" } else { "INVALID" });
-                                    println!("Hybrid result:       {}", if result.both_valid() { "VALID" } else { "INVALID" });
+                                    println!(
+                                        "Ed25519 signature:  {}",
+                                        if result.ed25519_ok {
+                                            "VALID"
+                                        } else {
+                                            "INVALID"
+                                        }
+                                    );
+                                    println!(
+                                        "ML-DSA-65 signature: {}",
+                                        if result.mldsa65_ok {
+                                            "VALID"
+                                        } else {
+                                            "INVALID"
+                                        }
+                                    );
+                                    println!(
+                                        "Hybrid result:       {}",
+                                        if result.both_valid() {
+                                            "VALID"
+                                        } else {
+                                            "INVALID"
+                                        }
+                                    );
 
                                     match sidecar.merkle.verify_replay_json(&json) {
                                         merkle::VerifyResult::Valid => {
