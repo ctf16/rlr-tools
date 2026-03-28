@@ -159,6 +159,7 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
         .unwrap_or_default()
         .into_iter()
         .map(|r| (r.name, r.dribble_suspicion_score))
+        .collect();
     // Run input synchrony analysis for timing-based scoring of keyboard players.
     let timing_lookup: HashMap<String, f64> = input_synchrony::analyze(parsed_json)
         .unwrap_or_default()
@@ -242,9 +243,14 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<BotDetectionResult>, Box<dyn e
                 1.0
             };
 
-            let bot_score =
-                (input_score * plat_mult * pre_hold_mult * kickoff_consistency_mult * dribble_mult)
-                    .min(1.0);
+            // bot_score is the pre-timing-path score; kept for debugging/future use.
+            #[allow(unused)]
+            let bot_score = (input_score
+                * plat_mult
+                * pre_hold_mult
+                * kickoff_consistency_mult
+                * dribble_mult)
+                .min(1.0);
             // For discrete-only players (keyboard), use timing-based scoring instead
             // of penalizing them for having few unique input values.
             let timing_score = timing_lookup.get(&profile.name).copied();
@@ -325,14 +331,100 @@ pub fn results_to_json(results: &[BotDetectionResult]) -> Value {
     })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::demystify;
+
+    fn load_and_analyze(replay_name: &str) -> Vec<BotDetectionResult> {
+        let cache_path = format!("parsed_games/{}.json", replay_name);
+        let json = demystify::load_parsed_json(&cache_path)
+            .unwrap_or_else(|e| panic!("Failed to load {}: {}", cache_path, e));
+        analyze(&json).unwrap_or_else(|e| panic!("Failed to analyze {}: {}", replay_name, e))
+    }
+
+    fn find_player<'a>(results: &'a [BotDetectionResult], name: &str) -> &'a BotDetectionResult {
+        results
+            .iter()
+            .find(|r| r.name == name)
+            .unwrap_or_else(|| panic!("Player '{}' not found in results", name))
+    }
+
+    fn assert_not_human(result: &BotDetectionResult) {
+        assert!(
+            result.verdict != "Human",
+            "{} should not be Human, got score={:.2} verdict={}",
+            result.name,
+            result.bot_score,
+            result.verdict
+        );
+    }
+
+    // bot9: Zret85(1) has 32 unique steer / 10 unique throttle — low diversity
+    // triggers the input_score=0.9 path (min_unique <= 10).
+    #[test]
+    fn bot9_zret85_clone_detected() {
+        let results = load_and_analyze("bot9");
+        assert_not_human(find_player(&results, "Zret85(1)"));
+    }
+
+    // bot10-12: same bot (Zret85(1)) in different matches
+    #[test]
+    fn bot10_zret85_clone_detected() {
+        let results = load_and_analyze("bot10");
+        assert_not_human(find_player(&results, "Zret85(1)"));
+    }
+
+    #[test]
+    fn bot11_zret85_clone_detected() {
+        let results = load_and_analyze("bot11");
+        assert_not_human(find_player(&results, "Zret85(1)"));
+    }
+
+    #[test]
+    fn bot12_zret85_clone_detected() {
+        let results = load_and_analyze("bot12");
+        assert_not_human(find_player(&results, "Zret85(1)"));
+    }
+
+    // Known detection gap: discrete-only bots with human-like timing.
+    // These bots use only {0, 128, 255} inputs but have low alternation rates
+    // (<5/s) and high hold CV (>1.0), so they score 0.0 on the timing path.
+    // bot3: TheFluff RL(1), bot7: Keimo_a_Rosca(1), bot8: ᵇᵉⁿʲi(1)
+    #[test]
+    fn bot3_thefluff_clone_is_discrete_only() {
+        let results = load_and_analyze("bot3");
+        let bot = find_player(&results, "TheFluff RL(1)");
+        assert!(bot.steer_only_discrete && bot.throttle_only_discrete);
+        assert!(bot.used_timing_path, "should use timing path for discrete inputs");
+    }
+
+    #[test]
+    fn bot7_keimo_clone_is_discrete_only() {
+        let results = load_and_analyze("bot7");
+        let bot = find_player(&results, "Keimo_a_Rosca(1)");
+        assert!(bot.steer_only_discrete && bot.throttle_only_discrete);
+        assert!(bot.used_timing_path, "should use timing path for discrete inputs");
+    }
+
+    #[test]
+    fn bot8_benji_clone_is_discrete_only() {
+        let results = load_and_analyze("bot8");
+        let bot = find_player(&results, "ᵇᵉⁿʲi(1)");
+        assert!(bot.steer_only_discrete && bot.throttle_only_discrete);
+        assert!(bot.used_timing_path, "should use timing path for discrete inputs");
+    }
+}
+
 pub fn print_report(results: &[BotDetectionResult]) {
     println!("=== Bot Detection Analysis ===");
     println!("  {}", "-".repeat(145));
-        "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>8} {:>8} {:>10} {:>7} {:>6}  {}",
+    println!(
+        "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>8} {:>8} {:>10} {:>10} {:>7} {:>6}  {}",
         "Player", "Platform", "Steer Samples", "Unique", "Throttle Samples", "Unique",
-        "Discrete", "PlatMult", "PreHold", "KickoffMul", "Timing", "Score", "Verdict"
+        "Discrete", "PlatMult", "PreHold", "KickoffMul", "DribbleMul", "Timing", "Score", "Verdict"
     );
-    println!("  {}", "-".repeat(142));
+    println!("  {}", "-".repeat(155));
 
     for r in results {
         let discrete = if r.steer_only_discrete && r.throttle_only_discrete {
@@ -352,6 +444,9 @@ pub fn print_report(results: &[BotDetectionResult]) {
         };
         let dribble_mul = if r.dribble_mult > 1.0 {
             format!("{:.2}x", r.dribble_mult)
+        } else {
+            "-".to_string()
+        };
         let timing = if r.used_timing_path {
             format!("{:.2}*", r.timing_bot_score.unwrap_or(0.0))
         } else if r.timing_bot_score.is_some() {
@@ -360,8 +455,7 @@ pub fn print_report(results: &[BotDetectionResult]) {
             "-".to_string()
         };
         println!(
-            "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>10} {:>5.2}  {}",
-            "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>7} {:>5.2}  {}",
+            "  {:<20} {:<8} {:>14} {:>7} {:>17} {:>7} {:>9} {:>7.2}x {:>8} {:>10} {:>10} {:>7} {:>5.2}  {}",
             r.name,
             r.platform,
             r.total_steer_updates,

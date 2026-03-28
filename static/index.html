@@ -211,6 +211,190 @@
   }
   .card pre { background: var(--surface2); margin: 0; }
 
+  /* Formatted views */
+  .kv-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 6px 16px;
+    font-size: 14px;
+  }
+  .kv-grid .label { color: var(--muted); text-align: right; }
+  .kv-grid .value { font-weight: 600; }
+
+  .score-display {
+    font-size: 28px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .score-display .blue { color: #4a9eff; }
+  .score-display .orange { color: #ff8c42; }
+  .score-display .sep { color: var(--muted); font-weight: 400; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .badge-green { background: rgba(74,222,128,0.15); color: var(--success); }
+  .badge-red { background: rgba(233,69,96,0.15); color: var(--accent); }
+  .badge-yellow { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .badge-muted { background: rgba(136,136,136,0.15); color: var(--muted); }
+
+  .team-panels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 640px) {
+    .team-panels { grid-template-columns: 1fr; }
+  }
+  .team-panel {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .team-panel h4 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid;
+  }
+  .team-panel.blue h4 { color: #4a9eff; border-color: #4a9eff; }
+  .team-panel.orange h4 { color: #ff8c42; border-color: #ff8c42; }
+
+  .player-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 14px;
+  }
+  .player-row .platform {
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--surface);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .bot-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .bot-dot.is-bot { background: var(--accent); }
+  .bot-dot.human { background: var(--success); }
+
+  /* Data tables */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .data-table th {
+    text-align: left;
+    padding: 8px 10px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .data-table th.num, .data-table td.num { text-align: right; }
+  .data-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(51,51,51,0.5);
+  }
+  .data-table tr:last-child td { border-bottom: none; }
+  .data-table tr:hover td { background: rgba(15,52,96,0.3); }
+
+  /* Progress bars */
+  .progress-bar {
+    width: 80px;
+    height: 8px;
+    background: var(--surface);
+    border-radius: 4px;
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  .progress-bar .fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+  .progress-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Stat highlight */
+  .stat-best { color: var(--success); font-weight: 600; }
+
+  /* Verify/Sign status */
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 14px;
+  }
+  .status-icon { font-size: 18px; }
+  .hash-display {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    background: var(--surface2);
+    padding: 4px 8px;
+    border-radius: 4px;
+    word-break: break-all;
+  }
+  .leaves-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 8px;
+  }
+  .leaf-item {
+    display: flex;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 12px;
+  }
+  .leaf-item .leaf-label { color: var(--muted); min-width: 120px; }
+  .leaf-item .leaf-hash { font-family: monospace; color: var(--text); opacity: 0.7; }
+
+  .double-commit-event {
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 6px;
+    font-size: 13px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .double-commit-event .dc-label { color: var(--muted); }
+
+  .card-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .card-row .card { flex: 1; min-width: 200px; }
+  .stat-big {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
   /* Mobile: collapse sidebar behind a toggle */
   #sidebar-toggle {
     display: none;
@@ -447,11 +631,378 @@ async function loadAction(action) {
       return;
     }
 
-    content.innerHTML = `<div class="card"><h3>${action}</h3><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+    const renderer = renderers[action];
+    if (renderer) {
+      content.innerHTML = renderer(data);
+    } else {
+      content.innerHTML = `<div class="card"><h3>${action}</h3><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+    }
   } catch (e) {
     content.innerHTML = `<div class="error">Request failed: ${e.message}</div>`;
   }
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function fmtDuration(secs) {
+  if (secs == null) return '—';
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+function fmtNum(v, decimals = 1) {
+  if (v == null) return '—';
+  return typeof v === 'number' ? v.toFixed(decimals) : String(v);
+}
+
+function fmtInt(v) {
+  if (v == null) return '—';
+  return String(Math.round(v));
+}
+
+function scoreColor(v, max) {
+  // 0 = green, 1 = red
+  const t = Math.min(v / Math.max(max, 0.01), 1);
+  if (t < 0.3) return 'var(--success)';
+  if (t < 0.6) return 'var(--warn)';
+  return 'var(--accent)';
+}
+
+function progressBar(value, max, color) {
+  const pct = Math.min((value / Math.max(max, 0.01)) * 100, 100);
+  const c = color || scoreColor(value, max);
+  return `<span class="progress-inline"><span class="progress-bar"><span class="fill" style="width:${pct}%;background:${c}"></span></span>${fmtNum(value, 2)}</span>`;
+}
+
+function verdictBadge(verdict) {
+  if (!verdict) return '';
+  const cls = verdict === 'Human' ? 'badge-green' : verdict === 'Bot' ? 'badge-red' : 'badge-yellow';
+  return `<span class="badge ${cls}">${esc(verdict)}</span>`;
+}
+
+function teamClass(idx) { return idx === 0 ? 'blue' : 'orange'; }
+function teamName(idx) { return idx === 0 ? 'Blue' : 'Orange'; }
+
+function tableHeader(cols) {
+  return '<thead><tr>' + cols.map(c => {
+    const cls = c.num ? ' class="num"' : '';
+    return `<th${cls}>${esc(c.label)}</th>`;
+  }).join('') + '</tr></thead>';
+}
+
+// ── Renderers ────────────────────────────────────────────────────────
+
+const renderers = {};
+
+renderers['overview'] = function(d) {
+  const score0 = d.score ? (d.score.team_0 ?? '?') : '?';
+  const score1 = d.score ? (d.score.team_1 ?? '?') : '?';
+  let badges = '';
+  if (d.forfeit) badges += ' <span class="badge badge-red">Forfeit</span>';
+
+  let teamsRow = '';
+  if (d.unfair_team_size && d.unfair_team_size > 0) {
+    teamsRow = `<span class="label">Teams</span><span class="value" style="color:var(--muted);font-weight:400">Uneven (player left)</span>`;
+  }
+
+  return `<div class="card"><h3>Match Overview</h3>
+    <div class="score-display" style="margin-bottom:16px">
+      <span class="blue">${esc(String(score0))}</span>
+      <span class="sep">—</span>
+      <span class="orange">${esc(String(score1))}</span>
+      ${badges}
+    </div>
+    <div class="kv-grid">
+      <span class="label">Game Type</span><span class="value">${esc(d.game_type || '—')}</span>
+      <span class="label">Team Size</span><span class="value">${esc(d.team_size || '—')}</span>
+      <span class="label">Date</span><span class="value">${esc(d.date || '—')}</span>
+      <span class="label">Duration</span><span class="value">${fmtDuration(d.duration_seconds)}</span>
+      ${teamsRow}
+    </div>
+  </div>`;
+};
+
+renderers['players'] = function(d) {
+  function renderTeam(players, idx) {
+    const rows = (players || []).map(p => {
+      const botCls = p.is_bot ? 'is-bot' : 'human';
+      return `<div class="player-row">
+        <span class="bot-dot ${botCls}" title="${p.is_bot ? 'Bot' : 'Human'}"></span>
+        <span>${esc(p.name)}</span>
+        <span class="platform">${esc(p.platform || '?')}</span>
+      </div>`;
+    }).join('');
+    return `<div class="team-panel ${teamClass(idx)}"><h4>${teamName(idx)}</h4>${rows}</div>`;
+  }
+  return `<div class="card"><h3>Players</h3>
+    <div class="team-panels">${renderTeam(d.team_0, 0)}${renderTeam(d.team_1, 1)}</div>
+  </div>`;
+};
+
+renderers['stats'] = function(d) {
+  const cols = [
+    { label: 'Name' },
+    { label: 'Score', num: true },
+    { label: 'Goals', num: true },
+    { label: 'Assists', num: true },
+    { label: 'Saves', num: true },
+    { label: 'Shots', num: true },
+  ];
+
+  function renderTeamTable(players, idx) {
+    // Find best in each stat column
+    const stats = ['score','goals','assists','saves','shots'];
+    const bests = {};
+    stats.forEach(s => {
+      const max = Math.max(...(players || []).map(p => p[s] || 0));
+      bests[s] = max;
+    });
+
+    const rows = (players || []).map(p => {
+      const cells = stats.map(s => {
+        const v = p[s] ?? 0;
+        const cls = v > 0 && v === bests[s] ? ' class="num stat-best"' : ' class="num"';
+        return `<td${cls}>${fmtInt(v)}</td>`;
+      }).join('');
+      return `<tr><td>${esc(p.name)}</td>${cells}</tr>`;
+    }).join('');
+
+    return `<div class="team-panel ${teamClass(idx)}"><h4>${teamName(idx)}</h4>
+      <table class="data-table">${tableHeader(cols)}
+      <tbody>${rows}</tbody></table></div>`;
+  }
+
+  return `<div class="card"><h3>Scoreboard</h3>
+    <div class="team-panels">${renderTeamTable(d.team_0, 0)}${renderTeamTable(d.team_1, 1)}</div>
+  </div>`;
+};
+
+renderers['bot-detection'] = function(d) {
+  const cols = [
+    { label: 'Name' },
+    { label: 'Platform' },
+    { label: 'Bot Score', num: true },
+    { label: 'Verdict' },
+    { label: 'Steer Values', num: true },
+    { label: 'Throttle Values', num: true },
+    { label: 'Discrete Steer' },
+    { label: 'Discrete Throttle' },
+  ];
+
+  const rows = (d.players || []).map(p => {
+    return `<tr>
+      <td>${esc(p.name)}</td>
+      <td><span class="platform">${esc(p.platform || '?')}</span></td>
+      <td class="num">${progressBar(p.bot_score, 1.0)}</td>
+      <td>${verdictBadge(p.verdict)}</td>
+      <td class="num">${fmtInt(p.unique_steer_count)}</td>
+      <td class="num">${fmtInt(p.unique_throttle_count)}</td>
+      <td>${p.steer_only_discrete ? '<span class="badge badge-yellow">Yes</span>' : '<span class="badge badge-muted">No</span>'}</td>
+      <td>${p.throttle_only_discrete ? '<span class="badge badge-yellow">Yes</span>' : '<span class="badge badge-muted">No</span>'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card"><h3>Bot Detection</h3>
+    <div style="overflow-x:auto"><table class="data-table">${tableHeader(cols)}
+    <tbody>${rows}</tbody></table></div>
+  </div>`;
+};
+
+renderers['kickoff'] = function(d) {
+  const cols = [
+    { label: 'Name' },
+    { label: 'Kickoffs', num: true },
+    { label: 'Mean Reaction', num: true },
+    { label: 'Std Dev', num: true },
+    { label: 'Pre-holds', num: true },
+    { label: 'Steer Var', num: true },
+    { label: 'Throttle Var', num: true },
+  ];
+
+  const rows = (d.players || []).map(p => {
+    return `<tr>
+      <td>${esc(p.name)}</td>
+      <td class="num">${fmtInt(p.kickoff_count)}</td>
+      <td class="num">${fmtNum(p.mean_reaction)}</td>
+      <td class="num">${fmtNum(p.reaction_stddev)}</td>
+      <td class="num">${fmtInt(p.pre_hold_count)}</td>
+      <td class="num">${fmtNum(p.steer_variability)}</td>
+      <td class="num">${fmtNum(p.throttle_variability)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card-row">
+    <div class="card"><h3>Kickoffs</h3><span class="stat-big">${d.kickoff_count ?? '—'}</span><br><span style="color:var(--muted);font-size:13px">total kickoffs detected</span></div>
+  </div>
+  <div class="card"><h3>Player Kickoff Analysis</h3>
+    <div style="overflow-x:auto"><table class="data-table">${tableHeader(cols)}
+    <tbody>${rows}</tbody></table></div>
+  </div>`;
+};
+
+renderers['boost'] = function(d) {
+  const cols = [
+    { label: 'Name' },
+    { label: 'Avg Boost', num: true },
+    { label: 'Zero%', num: true },
+    { label: 'Full%', num: true },
+    { label: 'Collected', num: true },
+    { label: 'Consumed', num: true },
+    { label: 'Big Pads', num: true },
+    { label: 'Small Pads', num: true },
+  ];
+
+  const rows = (d.players || []).map(p => {
+    return `<tr>
+      <td>${esc(p.name)}</td>
+      <td class="num">${progressBar(p.avg_boost, 100, '#4a9eff')}</td>
+      <td class="num">${fmtNum(p.zero_boost_pct)}%</td>
+      <td class="num">${fmtNum(p.full_boost_pct)}%</td>
+      <td class="num">${fmtNum(p.boost_collected)}%</td>
+      <td class="num">${fmtNum(p.boost_consumed)}%</td>
+      <td class="num">${fmtInt(p.big_pad_pickups)}</td>
+      <td class="num">${fmtInt(p.small_pad_pickups)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card"><h3>Boost Analysis</h3>
+    <div style="overflow-x:auto"><table class="data-table">${tableHeader(cols)}
+    <tbody>${rows}</tbody></table></div>
+  </div>`;
+};
+
+renderers['rotation'] = function(d) {
+  const playerCols = [
+    { label: 'Name' },
+    { label: 'Ball Chase%', num: true },
+    { label: 'Near Ball%', num: true },
+    { label: 'Offensive%', num: true },
+    { label: 'Defensive%', num: true },
+    { label: 'Back Post%', num: true },
+    { label: 'Retreats', num: true },
+  ];
+
+  const teams = (d.teams || []).map(t => {
+    const pRows = (t.players || []).map(p => {
+      return `<tr>
+        <td>${esc(p.name)}</td>
+        <td class="num">${fmtNum(p.ball_chase_pct)}%</td>
+        <td class="num">${fmtNum(p.time_near_ball_pct)}%</td>
+        <td class="num">${fmtNum(p.offensive_pct)}%</td>
+        <td class="num">${fmtNum(p.defensive_pct)}%</td>
+        <td class="num">${fmtNum(p.back_post_rotation_pct)}%</td>
+        <td class="num">${fmtInt(p.defensive_retreats)}</td>
+      </tr>`;
+    }).join('');
+
+    const dc = t.double_commits || { count: 0, events: [] };
+    let dcHtml = '';
+    if (dc.count > 0) {
+      const evts = (dc.events || []).slice(0, 10).map(e =>
+        `<div class="double-commit-event">
+          <span><span class="dc-label">Time:</span> ${fmtDuration(e.time)}</span>
+          <span><span class="dc-label">Players:</span> ${(e.players || []).map(esc).join(', ')}</span>
+          <span><span class="dc-label">Ball Dist:</span> ${fmtNum(e.distance_from_ball, 0)}</span>
+        </div>`
+      ).join('');
+      dcHtml = `<div style="margin-top:12px"><strong style="color:var(--warn)">${dc.count} Double Commits</strong>${evts}</div>`;
+    }
+
+    const teamIdx = t.team_index ?? 0;
+    return `<div class="card">
+      <h3 style="color:${teamIdx === 0 ? '#4a9eff' : '#ff8c42'}">${esc(t.team_name || teamName(teamIdx))}</h3>
+      <div style="margin-bottom:12px;font-size:14px">
+        <span style="color:var(--muted)">Avg Teammate Distance:</span> <strong>${fmtNum(t.avg_teammate_distance, 0)}</strong>
+      </div>
+      <div style="overflow-x:auto"><table class="data-table">${tableHeader(playerCols)}
+      <tbody>${pRows}</tbody></table></div>
+      ${dcHtml}
+    </div>`;
+  }).join('');
+
+  return teams;
+};
+
+renderers['dribble'] = function(d) {
+  const cols = [
+    { label: 'Name' },
+    { label: 'Dribbles', num: true },
+    { label: 'Frames', num: true },
+    { label: 'Flicks', num: true },
+    { label: 'Timed Flicks', num: true },
+    { label: 'Snappy Rate', num: true },
+    { label: 'Zero Steer%', num: true },
+    { label: 'Suspicion', num: true },
+  ];
+
+  const rows = (d.players || []).map(p => {
+    return `<tr>
+      <td>${esc(p.name)}</td>
+      <td class="num">${fmtInt(p.dribble_count)}</td>
+      <td class="num">${fmtInt(p.total_dribble_frames)}</td>
+      <td class="num">${fmtInt(p.total_flick_count)}</td>
+      <td class="num">${fmtInt(p.timed_flick_count)}</td>
+      <td class="num">${fmtNum(p.avg_snappy_rate)}</td>
+      <td class="num">${fmtNum(p.avg_zero_steer_pct)}%</td>
+      <td class="num">${progressBar(p.dribble_suspicion_score, 1.0)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card"><h3>Dribble Analysis</h3>
+    <div style="overflow-x:auto"><table class="data-table">${tableHeader(cols)}
+    <tbody>${rows}</tbody></table></div>
+  </div>`;
+};
+
+renderers['sign'] = function(d) {
+  const leavesHtml = (d.leaves || []).map(l =>
+    `<div class="leaf-item">
+      <span class="leaf-label">${esc(l.label || 'Leaf ' + l.index)}</span>
+      <span class="leaf-hash">${esc(l.hash)}</span>
+    </div>`
+  ).join('');
+
+  return `<div class="card"><h3>Replay Signed</h3>
+    <div class="status-row"><span class="badge badge-green">Signed</span><span>Algorithm: <strong>${esc(d.algorithm || '—')}</strong></span></div>
+    <div style="margin:12px 0">
+      <span style="color:var(--muted);font-size:13px">Merkle Root</span><br>
+      <span class="hash-display">${esc(d.merkle_root || '')}</span>
+    </div>
+    <details><summary style="cursor:pointer;color:var(--muted);font-size:13px">Leaf Hashes (${(d.leaves||[]).length})</summary>
+      <div class="leaves-list">${leavesHtml}</div>
+    </details>
+  </div>`;
+};
+
+renderers['verify'] = function(d) {
+  function statusRow(label, valid) {
+    const icon = valid ? '<span style="color:var(--success)">&#10003;</span>' : '<span style="color:var(--accent)">&#10007;</span>';
+    const badge = valid ? '<span class="badge badge-green">Valid</span>' : '<span class="badge badge-red">Failed</span>';
+    return `<div class="status-row">${icon} <span>${esc(label)}</span> ${badge}</div>`;
+  }
+
+  let tampered = '';
+  if (d.tampered_section) {
+    tampered = `<div style="margin-top:8px;padding:8px 12px;background:rgba(233,69,96,0.1);border-radius:6px;font-size:13px">
+      <strong style="color:var(--accent)">Tampered Section:</strong> ${esc(d.tampered_section)}
+    </div>`;
+  }
+
+  return `<div class="card"><h3>Verification Result</h3>
+    <div style="margin-bottom:8px;font-size:13px;color:var(--muted)">Algorithm: <strong style="color:var(--text)">${esc(d.algorithm || '—')}</strong></div>
+    ${statusRow('ED25519 Signature', d.ed25519_valid)}
+    ${statusRow('ML-DSA-65 Signature', d.mldsa65_valid)}
+    ${statusRow('Data Integrity', d.integrity_valid)}
+    ${tampered}
+  </div>`;
+};
 
 // ── Upload ────────────────────────────────────────────────────────────
 
@@ -475,7 +1026,8 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
       return;
     }
 
-    content.innerHTML = `<div class="card"><h3>Upload Complete</h3><pre>${JSON.stringify(data, null, 2)}</pre></div>`;
+    const overviewHtml = data.overview && renderers['overview'] ? renderers['overview'](data.overview) : `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+    content.innerHTML = `<div class="card"><h3>Upload Complete</h3><span class="badge badge-green">Parsed</span> <strong>${esc(data.name || '')}</strong></div>${overviewHtml}`;
     input.value = '';
     await loadReplays();
     selectReplay(data.category, data.name);

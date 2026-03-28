@@ -15,6 +15,7 @@ struct PlayerInputTimeline {
     throttle_events: Vec<InputEvent>,
 }
 
+#[allow(unused)]
 pub struct InputSynchronyResult {
     pub name: String,
     pub is_discrete_only: bool,
@@ -307,6 +308,7 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<InputSynchronyResult>, Box<dyn
     Ok(results)
 }
 
+#[allow(unused)]
 impl InputSynchronyResult {
     pub fn to_json(&self) -> Value {
         json!({
@@ -328,6 +330,7 @@ impl InputSynchronyResult {
     }
 }
 
+#[allow(unused)]
 pub fn results_to_json(results: &[InputSynchronyResult]) -> Value {
     json!({
         "players": results.iter().map(|r| r.to_json()).collect::<Vec<_>>(),
