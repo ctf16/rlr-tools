@@ -2,38 +2,96 @@
 
 ## Project Overview
 
-rlr-tools is a Rust project for Rocket League replay verification and analysis. It parses `.replay` binary files, with planned features for cryptographic verification and bot detection.
+rlr-tools is a Rust project for Rocket League replay analysis, bot detection, and cryptographic verification. It parses `.replay` binary files and exposes analysis via both a CLI and a web server.
 
 ## Tech Stack
 
 - **Rust** (2024 edition)
 - **boxcars** — Rocket League replay parser (parses network data)
-- **serde_json** — JSON serialization
+- **axum** + **tower-http** — Web server with REST API, file serving, CORS
+- **tokio** — Async runtime
+- **ed25519-dalek** + **fips204** — Hybrid Ed25519 + ML-DSA-65 signing
+- **sha3** — SHA3-256 hashing for Merkle tree
+- **clap** — CLI argument parsing with subcommands
+- **serde** / **serde_json** — Serialization
 
 ## Project Structure
 
 ```
 src/
-  main.rs        — Entry point; interactive replay selector
-  parser.rs      — Replay parsing with caching (parsed JSON stored in parsed_games/)
-  demystify.rs   — Human-readable summaries from parsed JSON (overview, players, stats)
+  main.rs               — Entry point; CLI menu + subcommand routing (cli / serve)
+  parser.rs             — Replay parsing via boxcars with JSON caching
+  demystify.rs          — Human-readable summaries (overview, players, stats)
+  bot_detection.rs      — Composite bot scoring (analog + discrete paths, platform weighting)
+  input_synchrony.rs    — Timing-based bot detection for keyboard/discrete-input players
+  kickoff_analysis.rs   — Per-kickoff reaction timing, pre-hold detection, sequence variability
+  boost_analysis.rs     — Boost tracking: avg level, time at zero/full, pad pickups, consumption
+  rotation_analysis.rs  — Team rotation: double commits, ball-chasing, teammate distance, back-post
+  dribble_analysis.rs   — Ground dribble detection: micro-corrections, zero-steer, opponent-timed flicks
+  merkle.rs             — Merkle tree construction, hybrid Ed25519 + ML-DSA-65 signing, .sig sidecar
+  web.rs                — Axum web server with REST API endpoints for all analysis types
+static/
+  index.html            — Single-file HTML/CSS/JS web frontend (replay browser, upload, analysis UI)
 assets/
-  replays/       — Sample .replay files for testing
-parsed_games/    — Cached JSON output from parsed replays (gitignored)
+  replays/              — Sample .replay files organized by category subdirectories
+  replays/uploads/      — User-uploaded replays via web UI
+parsed_games/           — Cached JSON output from parsed replays (gitignored)
+analysis/
+  bot-replays.md        — Case study of suspected bot replays
 ```
 
 ## Building & Running
 
 ```sh
 cargo build
-cargo run        # Parses assets/replays/good/rumble.replay
+cargo run               # Interactive CLI (default)
+cargo run -- serve      # Web server on port 3000
+cargo run -- serve -p 8080  # Custom port
 ```
 
-## Current Functionality
+## CLI Menu
 
-- Parse `.replay` files into full JSON (including network frame data) via `boxcars::ParserBuilder`
-- Cache parsed results as `parsed_games/<name>.json` to avoid redundant parsing
-- `parser::run_cached()` — parse with cache; `parser::run()` — parse without cache
+After selecting a category and replay, the CLI parses and displays game overview + stats, then offers:
+
+- `[s]` Sign replay (generate .sig sidecar with hybrid Ed25519 + ML-DSA-65)
+- `[v]` Verify existing signature
+- `[b]` Bot detection analysis
+- `[i]` Input synchrony analysis (keyboard player timing)
+- `[k]` Kickoff analysis
+- `[o]` Boost analysis
+- `[r]` Rotation analysis
+- `[d]` Dribble analysis
+
+## Web API Endpoints
+
+All under `/api/replays`:
+- `GET /` — List replay categories
+- `GET /{category}` — List replays in category
+- `POST /upload` — Upload a replay (20MB max, goes to `assets/replays/uploads/`)
+- `GET /{category}/{name}/bot-detection` — Bot detection analysis
+- `GET /{category}/{name}/input-synchrony` — Input synchrony analysis
+- `GET /{category}/{name}/kickoff` — Kickoff analysis
+- `GET /{category}/{name}/boost` — Boost analysis
+- `GET /{category}/{name}/rotation` — Rotation analysis
+- `GET /{category}/{name}/dribble` — Dribble analysis
+- `POST /{category}/{name}/sign` — Generate .sig sidecar
+- `GET /{category}/{name}/verify` — Verify existing signature
+
+## Core Parsing
+
+- `parser::run_cached()` — Parse with cache; `parser::run()` — parse without cache
+- `parser::parse_from_bytes()` — Parse from raw bytes (used by web upload)
+- Cache stored as `parsed_games/<name>.json`
+
+## Bot Detection Architecture
+
+Two scoring paths based on input type:
+- **Analog path** — For controller players: input diversity, unique value count, platform weighting
+- **Discrete/timing path** — For keyboard players: uses `input_synchrony` module (alternation rate, hold duration variance, multi-input synchrony), with a +0.15 discrete floor
+
+Key fields in `BotDetectionResult`: `steer_only_discrete`, `throttle_only_discrete`, `used_timing_path`, `timing_detail`, `discrete_kickoff_similarity`
+
+Each analysis module exposes: `analyze(&Value) -> Result<Vec<T>>`, `print_report(&[T])`, `results_to_json(&[T]) -> Value`
 
 ## Parsed JSON Structure
 
@@ -98,13 +156,11 @@ Key notes:
 - `game_type` encodes the game mode (Soccar, Hoops, Rumble, etc.)
 - `network_frames` contains the bulk of the data (player inputs, physics, etc.)
 
-## Planned Features
-
-1. **Replay Verifier** — Hash replay nodes into a Merkle tree, sign the root, store as `.sig`
-2. **Bot Detection** — Flag suspicious player input patterns (rapid alternating steer, repeated precise inputs)
-
 ## Conventions
 
 - Keep parsing logic in `parser.rs`; add new features as separate modules
+- Each analysis module follows the pattern: `analyze()`, `print_report()`, `results_to_json()`
 - Use `Box<dyn error::Error>` for error propagation in public functions
 - Network data parsing is always enabled (`must_parse_network_data()`)
+- See `METHODOLOGY.md` for detailed algorithm documentation
+- See `ROADMAP.md` for planned features
