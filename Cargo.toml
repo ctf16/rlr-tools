@@ -9,7 +9,7 @@ repository = "https://github.com/ctf16/rlr-tools"
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
 base64 = "0.22"
-boxcars = "0.10.11"
+boxcars = "0.10"
 clap = { version = "4", features = ["derive"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 fips204 = "0.4"
