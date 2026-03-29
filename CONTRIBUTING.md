@@ -13,7 +13,20 @@ Thanks for your interest in contributing! This document describes how to get set
 
 Check [ROADMAP.md](ROADMAP.md) for the current feature roadmap. Unchecked items are open for contribution. If you want to work on something not listed, open an issue first to discuss the approach.
 
-Bot detection improvements and new match analysis modules are the highest priority areas right now.
+### Already implemented (extend, don't duplicate)
+
+The following features already exist. Check the corresponding module before starting work in these areas:
+
+- **Input timing analysis** (`input_synchrony.rs`) — Steer alternation rate, hold duration variance, multi-input synchrony, and keyboard-aware scoring are already implemented. The ROADMAP lists some of these as separate unchecked items, but they are covered by this module.
+- **Dribble mechanics** (`dribble_analysis.rs`) — Micro-correction detection, zero-steer analysis, and opponent-timed flick detection using 3D RigidBody data.
+- **Web server** (`web.rs` + `static/index.html`) — REST API and browser UI for all analyses, including replay upload. The ROADMAP "Web API / server mode" item is implemented.
+- **Composite bot scoring** (`bot_detection.rs`) — Combines input diversity, timing, platform, kickoff, and dribble signals. New bot detection signals should integrate into this existing composite score rather than creating separate scoring systems.
+
+### Highest priority areas
+
+- **New bot detection signals** — Dodge timing consistency, post-impact recovery timing, boost tap variance, ball prediction accuracy, and steer-to-ball correlation (see ROADMAP for details)
+- **Match analysis** — Goal sequence analysis, demolition/bump tracking, speed/supersonic tracking
+- **Tooling** — Batch analysis mode, replay comparison/diff, training data export, player identity tracking
 
 ## Project Conventions
 
@@ -38,9 +51,10 @@ Bot detection improvements and new match analysis modules are the highest priori
 
 1. Create `src/your_module.rs`.
 2. Add `mod your_module;` to `src/main.rs`.
-3. Wire it into the interactive menu in `main.rs` (add a menu option and call your `analyze()` + `print_report()` functions).
-4. Update [ROADMAP.md](ROADMAP.md) to check off the item.
-5. Add a section to [README.md](README.md#features) describing the feature.
+3. Wire it into the interactive CLI menu in `main.rs` (add a menu option and call your `analyze()` + `print_report()` functions).
+4. Add a REST endpoint in `web.rs` and a corresponding button in `static/index.html` so the feature is available in the web UI.
+5. Update [ROADMAP.md](ROADMAP.md) to check off the item.
+6. Add a section to [README.md](README.md#features) describing the feature.
 
 ## Code Style
 
