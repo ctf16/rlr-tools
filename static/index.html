@@ -246,6 +246,10 @@
   .badge-yellow { background: rgba(251,191,36,0.15); color: var(--warn); }
   .badge-muted { background: rgba(136,136,136,0.15); color: var(--muted); }
 
+  .bot-main-row:hover { background: var(--surface2); }
+  .bot-main-row.bot-row-expanded { background: var(--surface2); }
+  .bot-detail-row td { padding-top: 0 !important; }
+
   .team-panels {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -318,7 +322,7 @@
   .progress-bar {
     width: 80px;
     height: 8px;
-    background: var(--surface);
+    background: rgba(255,255,255,0.1);
     border-radius: 4px;
     overflow: hidden;
     display: inline-block;
@@ -326,8 +330,10 @@
     margin-right: 6px;
   }
   .progress-bar .fill {
+    display: block;
     height: 100%;
     border-radius: 4px;
+    min-width: 0;
     transition: width 0.3s ease;
   }
   .progress-inline {
@@ -668,11 +674,11 @@ function fmtInt(v) {
 }
 
 function scoreColor(v, max) {
-  // 0 = green, 1 = red
+  // Continuous green→yellow→red gradient via HSL
+  // hue 120 = green, 60 = yellow, 0 = red
   const t = Math.min(v / Math.max(max, 0.01), 1);
-  if (t < 0.3) return 'var(--success)';
-  if (t < 0.6) return 'var(--warn)';
-  return 'var(--accent)';
+  const hue = 120 * (1 - t);
+  return `hsl(${hue}, 80%, 55%)`;
 }
 
 function progressBar(value, max, color) {
@@ -683,7 +689,7 @@ function progressBar(value, max, color) {
 
 function verdictBadge(verdict) {
   if (!verdict) return '';
-  const cls = verdict === 'Human' ? 'badge-green' : verdict === 'Bot' ? 'badge-red' : 'badge-yellow';
+  const cls = verdict === 'Human' ? 'badge-green' : verdict === 'Spectator' ? 'badge-muted' : verdict === 'Bot' ? 'badge-red' : 'badge-yellow';
   return `<span class="badge ${cls}">${esc(verdict)}</span>`;
 }
 
@@ -796,8 +802,108 @@ renderers['bot-detection'] = function(d) {
     { label: 'Discrete Throttle' },
   ];
 
-  const rows = (d.players || []).map(p => {
-    return `<tr>
+  function scoreBreakdown(p, idx) {
+    const detailId = `bot-detail-${idx}`;
+
+    // Base score explanation
+    let baseLine = '';
+    if (p.used_timing_path) {
+      const timingRaw = p.timing_bot_score != null ? p.timing_bot_score : 0;
+      const hasFloor = timingRaw < p.base_score;
+      const floorNote = hasFloor ? ` (includes +0.15 discrete input floor)` : '';
+      baseLine = `<strong>Timing score:</strong> ${fmtNum(p.base_score, 2)}${floorNote} — keyboard player scored via input synchrony (alternation rate, hold uniformity, simultaneous changes)`;
+    } else {
+      const avgUnique = (p.unique_steer_count + p.unique_throttle_count) / 2;
+      let reason = '';
+      if (p.steer_only_discrete && p.throttle_only_discrete) {
+        reason = 'all inputs are discrete (0/128/255 only)';
+      } else {
+        reason = `avg ${avgUnique} unique inputs (steer ${p.unique_steer_count}, throttle ${p.unique_throttle_count})`;
+      }
+      baseLine = `<strong>Input diversity:</strong> ${fmtNum(p.base_score, 2)} — ${reason}`;
+    }
+
+    // All multipliers (show neutral ones too so methodology is always complete)
+    const mults = [];
+    mults.push({ label: 'Platform', value: p.platform_multiplier, desc: `${esc(p.platform)} → ${p.platform_multiplier}x`, reduces: p.platform_multiplier < 1.0, active: p.platform_multiplier !== 1.0 });
+    if (p.kickoff_count > 0) {
+      const phm = p.pre_hold_mult;
+      mults.push({ label: 'Pre-hold', value: phm, desc: p.pre_hold_count > 0 ? `pre-held throttle ${p.pre_hold_count}/${p.kickoff_count} kickoffs → ${phm.toFixed(2)}x (human signal)` : `no pre-holds detected (${p.kickoff_count} kickoffs) → 1.00x`, reduces: p.pre_hold_count > 0, active: phm !== 1.0 });
+    }
+    if (p.kickoff_count >= 3) {
+      mults.push({ label: 'Kickoff consistency', value: p.kickoff_consistency_mult, desc: p.kickoff_consistency_mult !== 1.0 ? `very consistent reaction timing → ${p.kickoff_consistency_mult.toFixed(2)}x (bot signal)` : `normal reaction variance → 1.00x`, reduces: false, active: p.kickoff_consistency_mult !== 1.0 });
+      mults.push({ label: 'Kickoff sequences', value: p.kickoff_sequence_mult, desc: p.kickoff_sequence_mult !== 1.0 ? `near-identical input sequences across kickoffs → ${p.kickoff_sequence_mult.toFixed(2)}x (bot signal)` : `varied kickoff input sequences → 1.00x`, reduces: false, active: p.kickoff_sequence_mult !== 1.0 });
+      if (p.discrete_kickoff_mult != null && p.used_timing_path) {
+        const simStr = p.discrete_kickoff_similarity != null ? fmtNum(p.discrete_kickoff_similarity, 2) : '?';
+        mults.push({ label: 'KBM kickoff similarity', value: p.discrete_kickoff_mult, desc: p.discrete_kickoff_mult !== 1.0 ? `high frame-exact kickoff similarity (${simStr}) → ${p.discrete_kickoff_mult.toFixed(2)}x (bot signal)` : `normal kickoff variation (similarity ${simStr}) → 1.00x`, reduces: false, active: p.discrete_kickoff_mult !== 1.0 });
+      }
+    }
+    if (p.qualifying_dribble_count >= 2) {
+      mults.push({ label: 'Dribble', value: p.dribble_mult, desc: p.dribble_mult !== 1.0 ? `suspicious dribble mechanics (${p.qualifying_dribble_count} dribbles) → ${p.dribble_mult.toFixed(2)}x (bot signal)` : `normal dribble mechanics (${p.qualifying_dribble_count} dribbles) → 1.00x`, reduces: false, active: p.dribble_mult !== 1.0 });
+    }
+    const hiCh = p.unique_steer_count >= p.unique_throttle_count ? 'steer' : 'throttle';
+    const loCh = hiCh === 'steer' ? 'throttle' : 'steer';
+    mults.push({ label: 'Input asymmetry', value: p.asymmetry_mult, desc: p.asymmetry_mult !== 1.0 ? `${hiCh}/${loCh} diversity ratio ${fmtNum(p.asymmetry_ratio, 1)} → ${p.asymmetry_mult.toFixed(2)}x (bot signal)` : `${hiCh}/${loCh} diversity ratio ${fmtNum(p.asymmetry_ratio, 1)} → 1.00x (normal)`, reduces: false, active: p.asymmetry_mult !== 1.0 });
+
+    const multLines = mults.map(m => {
+      if (!m.active) {
+        return `<span style="color:var(--muted)">— <strong>${esc(m.label)}:</strong> ${m.desc}</span>`;
+      }
+      const icon = m.reduces ? '↓' : '↑';
+      const cls = m.reduces ? 'color:var(--success)' : 'color:var(--accent)';
+      return `<span style="${cls}">${icon}</span> <strong>${esc(m.label)}:</strong> ${m.desc}`;
+    });
+    const multHtml = multLines.map(l => `<div style="margin:2px 0">${l}</div>`).join('');
+
+    // Final formula
+    let formula = `${fmtNum(p.base_score, 2)}`;
+    if (p.platform_multiplier !== 1.0) formula += ` × ${p.platform_multiplier}`;
+    if (p.pre_hold_mult !== 1.0) formula += ` × ${p.pre_hold_mult.toFixed(2)}`;
+    if (p.kickoff_consistency_mult !== 1.0) formula += ` × ${p.kickoff_consistency_mult.toFixed(2)}`;
+    if (p.kickoff_sequence_mult !== 1.0) formula += ` × ${p.kickoff_sequence_mult.toFixed(2)}`;
+    if (p.discrete_kickoff_mult != null && p.discrete_kickoff_mult !== 1.0) formula += ` × ${p.discrete_kickoff_mult.toFixed(2)}`;
+    if (p.qualifying_dribble_count >= 2 && p.dribble_mult !== 1.0) formula += ` × ${p.dribble_mult.toFixed(2)}`;
+    if (p.asymmetry_mult !== 1.0) formula += ` × ${p.asymmetry_mult.toFixed(2)}`;
+    formula += ` = ${fmtNum(p.bot_score, 2)}`;
+
+    // Timing detail section for discrete-only players
+    let timingHtml = '';
+    if (p.used_timing_path && p.timing_detail) {
+      const td = p.timing_detail;
+      timingHtml = `
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
+          <div style="margin-bottom:4px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:0.5px">Input Synchrony Analysis</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px">
+            <div><span style="color:var(--muted)">Steer alternation:</span> ${fmtNum(td.steer_alternation_rate, 1)}/s</div>
+            <div><span style="color:var(--muted)">Throttle alternation:</span> ${fmtNum(td.throttle_alternation_rate, 1)}/s</div>
+            <div><span style="color:var(--muted)">Steer hold mean:</span> ${fmtNum(td.steer_hold_mean, 3)}s (CV ${fmtNum(td.steer_hold_cv, 2)})</div>
+            <div><span style="color:var(--muted)">Throttle hold mean:</span> ${fmtNum(td.throttle_hold_mean, 3)}s (CV ${fmtNum(td.throttle_hold_cv, 2)})</div>
+            <div><span style="color:var(--muted)">Simultaneous changes:</span> ${td.simultaneous_changes}/${td.total_change_frames} (${fmtNum(td.simultaneous_change_rate * 100, 1)}%)</div>
+            <div><span style="color:var(--muted)">Raw timing score:</span> ${fmtNum(td.timing_bot_score, 2)}</div>
+          </div>
+          <div style="margin-top:4px;font-size:11px;color:var(--muted)">
+            Composite: 0.45 × alt_score + 0.35 × hold_score + 0.20 × sync_score = ${fmtNum(td.timing_bot_score, 2)}, then +0.15 discrete floor → ${fmtNum(p.base_score, 2)}
+          </div>
+        </div>`;
+    }
+
+    return `<tr id="${detailId}" class="bot-detail-row" style="display:none">
+      <td colspan="8" style="padding:8px 16px;background:var(--surface2);border-top:none">
+        <div style="font-size:13px;line-height:1.6">
+          <div style="margin-bottom:4px;color:var(--muted);font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:0.5px">Score Breakdown</div>
+          <div style="margin:2px 0">${baseLine}</div>
+          ${multHtml}
+          <div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border);font-family:monospace;font-size:12px;color:var(--muted)">
+            ${formula}
+          </div>
+          ${timingHtml}
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  const rows = (d.players || []).map((p, i) => {
+    const mainRow = `<tr class="bot-main-row" data-detail="bot-detail-${i}" style="cursor:pointer" title="Click to show scoring breakdown">
       <td>${esc(p.name)}</td>
       <td><span class="platform">${esc(p.platform || '?')}</span></td>
       <td class="num">${progressBar(p.bot_score, 1.0)}</td>
@@ -807,12 +913,49 @@ renderers['bot-detection'] = function(d) {
       <td>${p.steer_only_discrete ? '<span class="badge badge-yellow">Yes</span>' : '<span class="badge badge-muted">No</span>'}</td>
       <td>${p.throttle_only_discrete ? '<span class="badge badge-yellow">Yes</span>' : '<span class="badge badge-muted">No</span>'}</td>
     </tr>`;
+    return mainRow + scoreBreakdown(p, i);
   }).join('');
 
-  return `<div class="card"><h3>Bot Detection</h3>
+  // Spectators section
+  const spectators = d.spectators || [];
+  let spectatorHtml = '';
+  if (spectators.length > 0) {
+    const specRows = spectators.map(s =>
+      `<tr><td>${esc(s.name)}</td><td><span class="platform">${esc(s.platform || '?')}</span></td></tr>`
+    ).join('');
+    spectatorHtml = `
+      <div style="margin-top:16px">
+        <h4 style="color:var(--muted);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Spectators (no inputs recorded)</h4>
+        <div style="overflow-x:auto"><table class="data-table">
+          <thead><tr><th>Name</th><th>Platform</th></tr></thead>
+          <tbody>${specRows}</tbody>
+        </table></div>
+      </div>`;
+  }
+
+  const html = `<div class="card"><h3>Bot Detection</h3>
+    <p style="color:var(--muted);font-size:13px;margin:-4px 0 12px">Click a player row to see their scoring breakdown.</p>
     <div style="overflow-x:auto"><table class="data-table">${tableHeader(cols)}
     <tbody>${rows}</tbody></table></div>
+    ${spectatorHtml}
   </div>`;
+
+  // After rendering, attach click handlers
+  setTimeout(() => {
+    document.querySelectorAll('.bot-main-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const detailId = row.getAttribute('data-detail');
+        const detail = document.getElementById(detailId);
+        if (detail) {
+          const isVisible = detail.style.display !== 'none';
+          detail.style.display = isVisible ? 'none' : 'table-row';
+          row.classList.toggle('bot-row-expanded', !isVisible);
+        }
+      });
+    });
+  }, 0);
+
+  return html;
 };
 
 renderers['kickoff'] = function(d) {
