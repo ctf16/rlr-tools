@@ -5,3 +5,4 @@ Cargo.lock
 /.idea/
 /.claude/
 /assets/replays/tmp/
+/assets/
