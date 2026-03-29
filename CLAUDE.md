@@ -8,13 +8,12 @@ rlr-tools is a Rust project for Rocket League replay analysis and verification. 
 
 - **Rust** (2024 edition)
 - **boxcars** — Rocket League replay parser (parses network data)
-- **axum** — Async web framework (REST API + static file serving)
+- **axum** + **tower-http** — Web server with REST API, file serving, CORS
 - **tokio** — Async runtime
-- **clap** — CLI argument parsing (derive)
-- **serde / serde_json** — Serialization
-- **ed25519-dalek** — Ed25519 signing (classical)
-- **fips204** — ML-DSA-65 (NIST post-quantum signing)
-- **sha3** — SHA3-256 hashing (Merkle tree)
+- **clap** — CLI argument parsing with subcommands
+- **serde** / **serde_json** — Serialization
+- **ed25519-dalek** + **fips204** — Hybrid Ed25519 + ML-DSA-65 signing
+- **sha3** — SHA3-256 hashing for Merkle tree
 
 ## Project Structure
 
@@ -23,19 +22,21 @@ src/
   main.rs              — Entry point; CLI menu + web server subcommands
   parser.rs            — Replay parsing with caching (parsed JSON stored in parsed_games/)
   demystify.rs         — Human-readable summaries from parsed JSON (overview, players, stats)
-  bot_detection.rs     — Composite bot scoring (input diversity, timing, platform, kickoff, dribble)
-  input_synchrony.rs   — Timing-based input analysis for discrete/keyboard players
-  kickoff_analysis.rs  — Per-kickoff reaction timing & input consistency
-  boost_analysis.rs    — Boost level tracking & pad pickup detection
-  rotation_analysis.rs — Team rotation metrics (double commits, ball-chasing, spacing)
-  dribble_analysis.rs  — Ground dribble detection using 3D ball-car positioning
-  merkle.rs            — Merkle tree construction + hybrid Ed25519/ML-DSA-65 signing
+  bot_detection.rs     — Composite bot scoring (analog + discrete paths, platform weighting)
+  input_synchrony.rs   — Timing-based bot detection for keyboard/discrete-input players
+  kickoff_analysis.rs  — Per-kickoff reaction timing, pre-hold detection, sequence variability
+  boost_analysis.rs    — Boost tracking: avg level, time at zero/full, pad pickups, consumption
+  rotation_analysis.rs — Team rotation: double commits, ball-chasing, teammate distance, back-post
+  dribble_analysis.rs  — Ground dribble detection: micro-corrections, zero-steer, opponent-timed flicks
+  merkle.rs            — Merkle tree construction, hybrid Ed25519 + ML-DSA-65 signing, .sig sidecar
   web.rs               — Axum web server & REST API handlers
 static/
   index.html           — Single-file web UI (HTML + CSS + vanilla JS)
 assets/
   replays/             — Organized by category: good/, bad/, bots/, kbm/, partial/, uploads/
 parsed_games/          — Cached JSON output from parsed replays (gitignored)
+analysis/
+  bot-replays.md       — Case study of suspected bot replays
 ```
 
 ## Building & Running
@@ -61,6 +62,21 @@ cargo run -- serve --port 3000   # Web server mode
    - `[r]` Rotation analysis — Double commits, ball-chasing %, spacing
    - `[d]` Dribble analysis — Micro-corrections, zero-steer periods, flicks
 
+## Web API Endpoints
+
+All under `/api/replays`:
+- `GET /` — List replay categories
+- `GET /{category}` — List replays in category
+- `POST /upload` — Upload a replay (20MB max, goes to `assets/replays/uploads/`)
+- `GET /{category}/{name}/bot-detection` — Bot detection analysis
+- `GET /{category}/{name}/input-synchrony` — Input synchrony analysis
+- `GET /{category}/{name}/kickoff` — Kickoff analysis
+- `GET /{category}/{name}/boost` — Boost analysis
+- `GET /{category}/{name}/rotation` — Rotation analysis
+- `GET /{category}/{name}/dribble` — Dribble analysis
+- `POST /{category}/{name}/sign` — Generate .sig sidecar
+- `GET /{category}/{name}/verify` — Verify existing signature
+
 ## Current Functionality
 
 - Parse `.replay` files into full JSON (including network frame data) via `boxcars::ParserBuilder`
@@ -73,6 +89,16 @@ cargo run -- serve --port 3000   # Web server mode
 - **Rotation analysis** — Double commits, ball-chasing %, teammate spacing, offensive momentum
 - **Dribble analysis** — Snappy micro-corrections, zero-steer periods, opponent-timed flicks (3D physics)
 - **Web UI** — Replay browser, file upload (max 20 MB), all analyses available via REST API
+
+## Bot Detection Architecture
+
+Two scoring paths based on input type:
+- **Analog path** — For controller players: input diversity, unique value count, platform weighting
+- **Discrete/timing path** — For keyboard players: uses `input_synchrony` module (alternation rate, hold duration variance, multi-input synchrony), with a +0.15 discrete floor
+
+Key fields in `BotDetectionResult`: `steer_only_discrete`, `throttle_only_discrete`, `used_timing_path`, `timing_detail`, `discrete_kickoff_similarity`
+
+Each analysis module exposes: `analyze(&Value) -> Result<Vec<T>>`, `print_report(&[T])`, `results_to_json(&[T]) -> Value`
 
 ## Parsed JSON Structure
 
@@ -147,6 +173,8 @@ Key notes:
 ## Conventions
 
 - Keep parsing logic in `parser.rs`; add new features as separate modules
+- Each analysis module follows the pattern: `analyze()`, `print_report()`, `results_to_json()`
 - Use `Box<dyn error::Error>` for error propagation in public functions
 - Network data parsing is always enabled (`must_parse_network_data()`)
-- Each analysis module follows the pattern: resolve object IDs → build actor maps → scan frames → produce result struct → print report
+- See `METHODOLOGY.md` for detailed algorithm documentation
+- See `ROADMAP.md` for planned features

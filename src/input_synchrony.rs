@@ -119,49 +119,32 @@ fn compute_synchrony(
 }
 
 // --- Scoring functions ---
-// Each returns 0.0 (human) to 1.0 (bot).
+// Each returns 0.0 (human) to 1.0 (bot), using continuous linear interpolation.
 
+fn lerp_clamp(value: f64, low_in: f64, high_in: f64, high_out: f64, low_out: f64) -> f64 {
+    if value <= low_in {
+        return high_out;
+    }
+    if value >= high_in {
+        return low_out;
+    }
+    let t = (value - low_in) / (high_in - low_in);
+    high_out + t * (low_out - high_out)
+}
+
+// Human keyboard players peak ~2 changes/s. Above ~3/s is suspicious; ≥12/s is fully bot-like.
 fn score_alternation_rate(rate: f64) -> f64 {
-    if rate < 5.0 {
-        0.0
-    } else if rate < 8.0 {
-        0.2
-    } else if rate < 12.0 {
-        0.5
-    } else if rate < 20.0 {
-        0.8
-    } else {
-        1.0
-    }
+    lerp_clamp(rate, 2.5, 12.0, 0.0, 1.0)
 }
 
+// Low CV = uniform hold durations = bot-like. Humans have natural variance (CV > 0.6 typical).
 fn score_hold_cv(cv_val: f64) -> f64 {
-    // Low CV = uniform hold durations = bot-like
-    if cv_val > 1.0 {
-        0.0
-    } else if cv_val > 0.6 {
-        0.2
-    } else if cv_val > 0.3 {
-        0.5
-    } else if cv_val > 0.1 {
-        0.8
-    } else {
-        1.0
-    }
+    lerp_clamp(cv_val, 0.05, 1.0, 1.0, 0.0)
 }
 
+// High simultaneous change rate = bot-like (both channels change on the same frame).
 fn score_synchrony_rate(rate: f64) -> f64 {
-    if rate < 0.15 {
-        0.0
-    } else if rate < 0.30 {
-        0.2
-    } else if rate < 0.50 {
-        0.5
-    } else if rate < 0.70 {
-        0.8
-    } else {
-        1.0
-    }
+    lerp_clamp(rate, 0.10, 0.70, 0.0, 1.0)
 }
 
 pub fn analyze(parsed_json: &Value) -> Result<Vec<InputSynchronyResult>, Box<dyn error::Error>> {

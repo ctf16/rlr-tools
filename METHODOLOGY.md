@@ -32,20 +32,55 @@ Bot detection produces a composite score (0.0–1.0) for each player based on mu
 
 The primary signal. Human players using analog sticks produce a wide range of values (100+ distinct values across the 0–255 byte range) for both steering and throttle. Bots and keyboard players produce far fewer distinct values.
 
-The analysis collects every `ReplicatedSteer` and `ReplicatedThrottle` update per player across all network frames, then counts the number of unique byte values observed for each.
+The analysis collects every `ReplicatedSteer` and `ReplicatedThrottle` update per player across all network frames, then counts the number of unique byte values observed for each. The **average** of the steer and throttle unique counts is used — channel asymmetry is handled by a separate multiplier.
 
-Scoring (using the lower of steer/throttle unique counts):
+Scoring uses continuous linear interpolation between anchor points:
 
-| Condition | Input Score |
+| avg_unique | Input Score |
 |---|---|
-| Both steer and throttle use only discrete values (0, 128, 255) | 1.0 |
-| <= 10 unique values | 0.9 |
-| <= 50 unique values | 0.75 |
-| <= 75 unique values | 0.6 |
-| <= 100 unique values | 0.4 |
-| > 100 unique values | 0.0 |
+| ≤ 10 | 0.90 (ceiling) |
+| ~110 | ~0.48 |
+| ≥ 220 | 0.05 (floor) |
 
-A minimum of 10 steer samples is required; below that the input score defaults to 0.0 (insufficient data).
+Special cases:
+- Both steer and throttle discrete-only (0, 128, 255): **1.0** (routes to timing path)
+- Fewer than 10 steer samples: **0.0** (insufficient data)
+
+### Input Synchrony Analysis (Timing Path)
+
+Discrete-only players (keyboard — all inputs are 0, 128, or 255) cannot be scored by input diversity since they inherently have few unique values. Instead, they are scored via timing-based analysis of their input patterns. The composite timing score replaces the input diversity score as the base, with a +0.15 discrete floor added.
+
+Three sub-metrics are computed, each scored 0.0 (human) to 1.0 (bot) via continuous linear interpolation:
+
+**Alternation rate** — value changes per second, using the higher of steer and throttle. Human keyboard players peak ~2 changes/s; above ~3/s is suspicious.
+
+| Rate | Score |
+|---|---|
+| ≤ 2.5/s | 0.0 (human) |
+| ~7/s | ~0.5 |
+| ≥ 12/s | 1.0 (bot) |
+
+**Hold duration CV** — coefficient of variation of hold durations, using the lower (more suspicious) of steer and throttle. Low CV means uniform timing — bot-like.
+
+| CV | Score |
+|---|---|
+| ≤ 0.05 | 1.0 (bot — uniform timing) |
+| ~0.5 | ~0.5 |
+| ≥ 1.0 | 0.0 (human — natural variance) |
+
+**Synchrony rate** — fraction of input change frames where both steer and throttle changed on the same frame. Bots often update all channels simultaneously.
+
+| Rate | Score |
+|---|---|
+| ≤ 0.10 | 0.0 |
+| ~0.40 | ~0.5 |
+| ≥ 0.70 | 1.0 |
+
+**Composite:**
+```
+timing_bot_score = 0.45 × alt_score + 0.35 × hold_score + 0.20 × sync_score
+base_score = timing_bot_score + 0.15 (discrete floor)
+```
 
 ### Platform Multiplier
 
@@ -61,23 +96,58 @@ Platform is extracted from `properties.PlayerStats[].Platform.value`.
 
 ### Kickoff Behavior (Pre-Hold)
 
-If a player is already holding throttle (value 255) on the very first frame of a kickoff countdown (frame offset 0), that's a strong human signal — humans often pre-hold the gas in anticipation. Each such detection applies a **0.4x** multiplier to the bot score, significantly reducing it.
+If a player is already holding throttle (value 255) on the very first frame of a kickoff countdown (frame offset 0), that's a human signal — humans often pre-hold the gas in anticipation. The reduction scales linearly with the proportion of kickoffs showing pre-holds:
+
+```
+pre_hold_mult = 1.0 - 0.3 × (pre_hold_count / kickoff_count)
+```
+
+A single pre-hold in a 5-kickoff game applies a ~6% reduction; consistent pre-holding across all kickoffs applies the maximum 30% reduction.
 
 ### Kickoff Reaction Consistency
 
-Bots tend to react to kickoff countdowns with near-identical timing across all kickoffs. Humans naturally vary. The reaction standard deviation (in frames) across 3+ kickoffs is used as a multiplier:
+Bots tend to react to kickoff countdowns with near-identical timing across all kickoffs. Humans naturally vary. The reaction standard deviation (in frames) across 3+ kickoffs is mapped to a multiplier via linear interpolation:
 
-| Reaction Stddev (frames) | Multiplier |
+| Reaction Stddev | Multiplier |
 |---|---|
-| < 1.0 | 1.5x (strong bot signal) |
-| < 3.0 | 1.3x |
-| < 5.0 | 1.1x |
-| >= 5.0 | 1.0x (no effect) |
+| 0.0 | 2.0x (strongest bot signal) |
+| ~2.5 | ~1.5x |
+| ≥ 5.0 | 1.0x (no effect) |
+
+### Kickoff Sequence Variability
+
+Bots that replay the same input sequence every kickoff produce near-identical steer and throttle sequences. The average pairwise normalized distance (0.0 = identical, 1.0 = maximally different) is computed across all kickoff sequences per player. The more suspicious (lower variability) channel is used. Requires 3+ kickoffs.
+
+| Min Variability | Multiplier |
+|---|---|
+| 0.0 | 1.5x (identical sequences — strong bot signal) |
+| ~0.025 | ~1.25x |
+| ≥ 0.05 | 1.0x (normal human variation) |
+
+### Dribble Multiplier
+
+When a player has 2+ qualifying dribbles (≥60 frames of ball carry), the dribble suspicion score feeds a multiplier via linear interpolation:
+
+| Suspicion Score | Multiplier |
+|---|---|
+| ≤ 0.1 | 1.0x (no effect) |
+| ~0.45 | ~1.2x |
+| ≥ 0.8 | 1.4x |
+
+### Input Asymmetry Multiplier
+
+Real players have correlated steer/throttle diversity — both high (analog) or both discrete (keyboard). A mismatch where one channel shows genuine analog diversity (>30 unique values) while the other is sparse is suspicious. The ratio `max(steer, throttle) / min(steer, throttle)` is mapped via linear interpolation:
+
+| Asymmetry Ratio | Multiplier |
+|---|---|
+| ≤ 1.5 | 1.0x (normal) |
+| ~3.0 | ~1.4x |
+| ≥ 4.5 | 1.8x |
 
 ### Final Score
 
 ```
-bot_score = min(input_score * platform_mult * pre_hold_mult * kickoff_consistency_mult, 1.0)
+bot_score = min(base_score × platform × pre_hold × kickoff_consistency × kickoff_sequence × dribble × asymmetry, 1.0)
 ```
 
 ## Kickoff Analysis
@@ -234,3 +304,53 @@ Rotating to the far post is a fundamental defensive principle in Rocket League �
 ### Per-Minute Breakdown
 
 All frame-level counters are bucketed into 60-second windows using the frame's `time` field. For each minute, the report shows per-team: average teammate distance, offensive percentage, and ball-chase frame count. This reveals whether a team's rotation improves or degrades over the course of a match — for example, due to fatigue, tilt, or adapting to an opponent's playstyle.
+
+---
+
+## Appendix: Legacy Discrete Thresholds
+
+Prior to the switch to continuous linear interpolation, all bot detection metrics used stepped if/else thresholds. These are preserved here for reference.
+
+### Input Diversity (original)
+
+Used `min(steer, throttle)` unique counts:
+
+| Condition | Input Score |
+|---|---|
+| Both discrete (0, 128, 255) | 1.0 |
+| ≤ 10 unique values | 0.9 |
+| ≤ 50 unique values | 0.75 |
+| ≤ 75 unique values | 0.6 |
+| ≤ 100 unique values | 0.4 |
+| > 100 unique values | 0.0 |
+
+### Pre-Hold (original)
+
+Binary: any pre-hold applied a flat **0.4x** multiplier.
+
+### Kickoff Reaction Consistency (original)
+
+| Reaction Stddev (frames) | Multiplier |
+|---|---|
+| < 1.0 | 1.5x |
+| < 3.0 | 1.3x |
+| < 5.0 | 1.1x |
+| ≥ 5.0 | 1.0x |
+
+### Dribble (original)
+
+| Suspicion Score | Multiplier |
+|---|---|
+| ≥ 0.7 | 1.4x |
+| ≥ 0.4 | 1.2x |
+| ≥ 0.1 | 1.1x |
+| < 0.1 | 1.0x |
+
+### Input Asymmetry (original)
+
+| Ratio | Multiplier |
+|---|---|
+| ≥ 4.0 | 1.8x |
+| ≥ 2.5 | 1.5x |
+| ≥ 1.75 | 1.2x |
+| < 1.75 | 1.0x |

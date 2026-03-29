@@ -32,6 +32,13 @@ pub struct KickoffAnalysisResult {
     pub steer_variability: Option<f64>,
     /// Average pairwise distance of throttle sequences across kickoffs.
     pub throttle_variability: Option<f64>,
+    /// Whether this player uses only discrete (keyboard) inputs in kickoffs.
+    pub is_discrete_only: bool,
+    /// Average pairwise exact-match similarity of steer sequences (keyboard players only).
+    /// 1.0 = identical across kickoffs, 0.0 = no frame matches.
+    pub discrete_steer_similarity: Option<f64>,
+    /// Average pairwise exact-match similarity of throttle sequences (keyboard players only).
+    pub discrete_throttle_similarity: Option<f64>,
 }
 
 fn resolve_object_id(objects: &[Value], needle: &str) -> Option<u64> {
@@ -54,7 +61,6 @@ fn mean_stddev(values: &[f64]) -> (f64, f64) {
 
 /// Normalized mean absolute difference between two input sequences.
 /// Returns 0.0 for identical sequences, 1.0 for maximally different.
-/// Sequences are centered (subtract 128) before comparison.
 fn sequence_distance(a: &[u8], b: &[u8]) -> f64 {
     let len = a.len().min(b.len());
     if len == 0 {
@@ -66,6 +72,23 @@ fn sequence_distance(a: &[u8], b: &[u8]) -> f64 {
         .map(|(&x, &y)| (x as f64 - y as f64).abs())
         .sum();
     sum_diff / (len as f64 * 255.0)
+}
+
+/// Frame-by-frame exact match rate between two discrete input sequences.
+/// Returns 1.0 for identical sequences, 0.0 for no matches.
+/// More discriminating than `sequence_distance` for keyboard inputs ({0, 128, 255})
+/// because any value difference counts equally regardless of magnitude.
+fn discrete_sequence_similarity(a: &[u8], b: &[u8]) -> f64 {
+    let len = a.len().min(b.len());
+    if len == 0 {
+        return 0.0;
+    }
+    let matches = a[..len]
+        .iter()
+        .zip(b[..len].iter())
+        .filter(|&(&x, &y)| x == y)
+        .count();
+    matches as f64 / len as f64
 }
 
 /// Maximum number of frames after countdown=0 to consider part of the kickoff.
@@ -316,6 +339,37 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<KickoffAnalysisResult>, Box<dy
         let steer_variability = avg_pairwise_distance(&steer_sequences);
         let throttle_variability = avg_pairwise_distance(&throttle_sequences);
 
+        // Detect if this player uses only discrete (keyboard) values in kickoffs.
+        let discrete_values: [u8; 3] = [0, 128, 255];
+        let is_discrete_only = steer_sequences
+            .iter()
+            .chain(throttle_sequences.iter())
+            .all(|seq| seq.iter().all(|v| discrete_values.contains(v)));
+
+        // For keyboard players, compute exact-match similarity (more discriminating
+        // than normalized distance when inputs are {0, 128, 255}).
+        let avg_pairwise_similarity = |seqs: &[Vec<u8>]| -> Option<f64> {
+            if seqs.len() < 2 {
+                return None;
+            }
+            let mut sims = Vec::new();
+            for i in 0..seqs.len() {
+                for j in (i + 1)..seqs.len() {
+                    sims.push(discrete_sequence_similarity(&seqs[i], &seqs[j]));
+                }
+            }
+            Some(sims.iter().sum::<f64>() / sims.len() as f64)
+        };
+
+        let (discrete_steer_similarity, discrete_throttle_similarity) = if is_discrete_only {
+            (
+                avg_pairwise_similarity(&steer_sequences),
+                avg_pairwise_similarity(&throttle_sequences),
+            )
+        } else {
+            (None, None)
+        };
+
         results.push(KickoffAnalysisResult {
             name,
             kickoff_count: kickoff_windows.len(),
@@ -325,6 +379,9 @@ pub fn analyze(parsed_json: &Value) -> Result<Vec<KickoffAnalysisResult>, Box<dy
             pre_hold_count,
             steer_variability,
             throttle_variability,
+            is_discrete_only,
+            discrete_steer_similarity,
+            discrete_throttle_similarity,
         });
     }
 
@@ -343,6 +400,9 @@ impl KickoffAnalysisResult {
             "pre_hold_count": self.pre_hold_count,
             "steer_variability": self.steer_variability,
             "throttle_variability": self.throttle_variability,
+            "is_discrete_only": self.is_discrete_only,
+            "discrete_steer_similarity": self.discrete_steer_similarity,
+            "discrete_throttle_similarity": self.discrete_throttle_similarity,
         })
     }
 }
@@ -363,10 +423,10 @@ pub fn print_report(results: &[KickoffAnalysisResult]) {
     );
     println!();
     println!(
-        "  {:<24} {:>10} {:>10} {:>10} {:>12} {:>12}",
-        "Player", "MeanReact", "StdDev", "PreHold", "SteerVar", "ThrottleVar"
+        "  {:<24} {:>10} {:>10} {:>10} {:>12} {:>12} {:>5} {:>10}",
+        "Player", "MeanReact", "StdDev", "PreHold", "SteerVar", "ThrottleVar", "KBM?", "KBM Sim"
     );
-    println!("  {}", "-".repeat(82));
+    println!("  {}", "-".repeat(105));
 
     for r in results {
         let mean_str = r
@@ -381,10 +441,16 @@ pub fn print_report(results: &[KickoffAnalysisResult]) {
         let throttle_var = r
             .throttle_variability
             .map_or("N/A".to_string(), |v| format!("{:.4}", v));
+        let kbm = if r.is_discrete_only { "Yes" } else { "No" };
+        let kbm_sim = match (r.discrete_steer_similarity, r.discrete_throttle_similarity) {
+            (Some(s), Some(t)) => format!("{:.2}/{:.2}", s, t),
+            _ => "N/A".to_string(),
+        };
 
         println!(
-            "  {:<24} {:>10} {:>10} {:>8}/{:<1} {:>12} {:>12}",
+            "  {:<24} {:>10} {:>10} {:>8}/{:<1} {:>12} {:>12} {:>5} {:>10}",
             r.name, mean_str, std_str, r.pre_hold_count, r.kickoff_count, steer_var, throttle_var,
+            kbm, kbm_sim,
         );
     }
 
